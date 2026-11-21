@@ -19,6 +19,18 @@ These are built into the defaults and apply to anyone running webparity:
 - Nothing goes into a report that wasn't measured. A guess is labelled as a guess.
 - Every issue is reviewed and filed by a person. webparity never posts on GitHub, and it never writes patches or opens pull requests against the engines it tests.
 
+## Running the browsers (phase 1)
+
+`compose.yaml` starts the three browsers: Chromium and Firefox in the `reference` image (Debian 13, real windows under Xvfb), and Ladybird's WebDriver in the `ladybird` image, built on Ladybird's own CI image. Ladybird itself is not in the image: point `LADYBIRD_BUILD` at a `Build/release` directory built in Ladybird's CI image.
+
+```sh
+LADYBIRD_BUILD=/path/to/ladybird/Build/release docker compose up --build
+```
+
+All three speak WebDriver BiDi on `127.0.0.1` inside the shared network namespace: Ladybird on 9616 and chromedriver on 9515 (BiDi through `webSocketUrl`), Firefox on 9222 directly. `tools/smoke_images.py` checks that each browser answers, that console entries arrive, and that all three use the same fonts.
+
+The `reference` container runs without Docker's seccomp and AppArmor profiles, because Chromium's sandbox needs user namespaces. It has no capabilities and runs with `no-new-privileges`, and Chromium and Firefox keep their own sandboxes.
+
 ## Development
 
 ```sh

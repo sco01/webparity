@@ -8,8 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-CHECKED_SUFFIXES = {".py", ".sh", ".yml", ".yaml", ".toml", ".js", ".css", ".html", ".md"}
-CHECKED_NAMES = {"Dockerfile", ".gitignore"}
+CHECKED_SUFFIXES = {".conf", ".py", ".sh", ".yml", ".yaml", ".toml", ".js", ".css", ".html", ".md"}
+CHECKED_NAMES = {"Dockerfile", ".gitignore", "packages.txt"}
 
 
 def tracked_files() -> list[Path]:

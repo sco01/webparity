@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# The fonts in both images, from Debian 13 (see docs/license-review.md). Both images install exactly these packages.
+fonts-liberation
+fonts-liberation-sans-narrow
+fonts-noto-core
+fonts-noto-mono

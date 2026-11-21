@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# Phase 1: the browsers. All services share the reference container's network namespace, so the browsers and the
+# worker reach each other on 127.0.0.1 and nothing is exposed outside.
+#   LADYBIRD_BUILD=/path/to/Build/release docker compose up --build
+services:
+  reference:
+    build:
+      context: images
+      dockerfile: reference/Dockerfile
+    shm_size: 2gb
+    environment:
+      WEBPARITY_PROXY: ${WEBPARITY_PROXY:-}
+    # Chromium's sandbox needs user namespaces, which Docker's default seccomp and AppArmor profiles block. The container
+    # runs without them, but with no capabilities and no-new-privileges; Chromium and Firefox keep their own sandboxes,
+    # which are what protects against the sites' content.
+    security_opt:
+      - seccomp=unconfined
+      - apparmor=unconfined
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    restart: unless-stopped
+
+  ladybird:
+    build:
+      context: images
+      dockerfile: ladybird/Dockerfile
+    network_mode: "service:reference"
+    depends_on: [reference]
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    volumes:
+      # Mounted at /src/Build/release, the path Ladybird's CI image builds at (the binaries use an absolute RUNPATH).
+      - ${LADYBIRD_BUILD:?set LADYBIRD_BUILD to a Ladybird Build/release directory}:/src/Build/release:ro
+    restart: unless-stopped

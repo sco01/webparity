@@ -26,4 +26,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t webparity-browsers images/browsers
+      - run: docker build -f images/reference/Dockerfile -t webparity-reference images
+      - run: docker build -f images/ladybird/Dockerfile -t webparity-ladybird images
