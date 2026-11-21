@@ -203,6 +203,24 @@ def run(config: dict, only: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     db = DB.open(config)
     s = _settings(config)
+    # The chain uses the same browsers as the workers: ask them to stop, and wait for running visits to finish
+    from pathlib import Path
+
+    stop_file = Path(config["data_dir"]) / "stop-workers"
+    created = not stop_file.exists()
+    stop_file.touch()
+    deadline = time.time() + 600
+    while time.time() < deadline and db.one("SELECT 1 FROM sites WHERE status = 'visiting' LIMIT 1"):
+        time.sleep(10)
+    time.sleep(35)  # a worker checks the stop file between visits and then closes its sessions
+    try:
+        return _run_steps(config, db, s, only)
+    finally:
+        if created:
+            stop_file.unlink(missing_ok=True)
+
+
+def _run_steps(config: dict, db: DB, s: dict, only: list[str] | None) -> int:
     run_id = db.start_run("nightly")
     summary: dict = {}
     failed = []
