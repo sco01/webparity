@@ -227,6 +227,47 @@ def cmd_nightly(args) -> int:
     return nightly.run(_config(args), only=args.only.split(",") if args.only else None)
 
 
+def cmd_canary(args) -> int:
+    """Runs the canary pages (all, or the named ones) and reports which detectors fired."""
+    from webparity import canary
+    from webparity.known import Known
+    from webparity.proxy import Proxy
+    from webparity.visit import visit
+
+    cfg = _config(args)
+    cfg["proxy"]["keep"] = "none"
+    base, server = canary.start_server()
+    if args.serve:
+        print(f"serving the canary pages on {base}/c/<name>.html; Ctrl-C to stop")
+        for e in canary.entries(base):
+            print(f"  {e['url']}  expects {e['expect'] or 'nothing'}")
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            return 0
+    proxy = None if not cfg["proxy"]["record"] else Proxy(cfg)
+    handles = _handles(cfg, cfg["browsers"], proxy)
+    known, bad = Known.from_config(cfg), 0
+    try:
+        for e in canary.entries(base, args.names or None):
+            bundle = visit(e["url"], cfg, handles, proxy=proxy, known=known)
+            sigs = [f["signature"] for f in bundle.data["findings"]]
+            errors = [f["signature"] for f in bundle.data["findings"] if f["category"] == "error"]
+            ok = all(any(s.startswith(x) for s in sigs) for x in e["expect"]) if e["expect"] else not errors
+            bad += not ok
+            print(f"  {'OK  ' if ok else 'FAIL'} {e['name']:18} expects {e['expect'] or 'nothing':30} got {sigs[:6]}")
+            for name, h in list(handles.items()):
+                if not h.alive():
+                    h.stop()
+                    handles[name] = _handles(cfg, [name], proxy)[name]
+    finally:
+        for h in handles.values():
+            h.stop()
+        server.shutdown()
+    print(f"canary: {bad} failed")
+    return 1 if bad else 0
+
+
 def cmd_sites(args) -> int:
     from webparity.sites import read_list
 
@@ -445,6 +486,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--only", help="only these steps (comma-separated)")
     p.set_defaults(fn=cmd_nightly)
 
+    p = sub.add_parser("canary", help="visit the canary pages and check that every detector fires")
+    p.add_argument("names", nargs="*", help="only these canaries")
+    p.add_argument("--serve", action="store_true", help="only serve the pages, for manual checks")
+    p.set_defaults(fn=cmd_canary)
+
     p = sub.add_parser("sites", help="the site queue: status, add, requeue")
     p.add_argument("action", nargs="?", default="status", choices=["status", "add", "requeue"])
     p.add_argument("items", nargs="*", help="URLs, domains or site list files")
@@ -508,8 +554,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 COMMANDS = [
-    "probe", "visit", "replay", "reanalyze", "reduce", "worker", "nightly", "sites", "candidates", "import-old",
-    "compare", "web", "alerts", "draft", "register", "watch", "verify", "index", "import-gallery",
+    "probe", "visit", "replay", "reanalyze", "reduce", "worker", "nightly", "canary", "sites", "candidates",
+    "import-old", "compare", "web", "alerts", "draft", "register", "watch", "verify", "index", "import-gallery",
 ]  # fmt: skip
 
 

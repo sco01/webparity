@@ -4,8 +4,8 @@
 Steps, each recorded in the run summary and never stopping the chain unless the build is unusable:
 
 1. ``build``: the build under test (``ladybird.build_info``); optionally run ``nightly.build_command`` first.
-2. ``canary``: visit the canary pages, each with signatures it must produce. A missing signature means a detector or
-   the collection broke.
+2. ``canary``: visit the canary pages (``webparity.canary``: our own pages that misbehave only in Ladybird), each with
+   the signature it must produce. A missing signature means a detector or the collection broke.
 3. ``regression``: visit the regression sites (shallow), and report error signatures that are new since the last run.
 4. ``verify``: run filed issues' test cases against the new build.
 5. ``watch``: refresh filed issues from GitHub (anonymous, read-only).
@@ -31,7 +31,7 @@ log = logging.getLogger("webparity.nightly")
 
 DEFAULTS = {
     "build_command": "",
-    "canary": [],  # [{"url": ..., "expect": ["signature-prefix", ...]}]
+    "canary": [],  # extra pages besides the built-in ones: [{"url": ..., "expect": ["signature-prefix", ...]}]
     "regression_sites": [],
     "recheck_days": 7,
 }
@@ -82,19 +82,32 @@ def _visit_list(config, entries, deep: bool):
 
 
 def step_canary(config, db, s):
-    if not s["canary"]:
-        return {"skipped": "no canary pages configured"}
-    missing = {}
+    """The built-in canary pages (webparity.canary), plus any configured ones."""
+    from webparity import canary
+
+    base, server = canary.start_server()
+    entries = canary.entries(base) + list(s["canary"] or [])
     cfg = json.loads(json.dumps(config))
-    cfg["proxy"]["keep"] = "all"
-    for entry, bundle in _visit_list(cfg, s["canary"], deep=True):
-        sigs = [f["signature"] for f in bundle.data["findings"]]
-        lost = [e for e in entry.get("expect", []) if not any(sig.startswith(e) for sig in sigs)]
-        if lost:
-            missing[entry["url"]] = lost
-    if missing:
-        raise RuntimeError(f"canary: expected findings missing: {json.dumps(missing)[:400]}")
-    return {"pages": len(s["canary"]), "ok": True}
+    cfg["proxy"]["keep"] = "none"
+    failed, noisy = {}, {}
+    try:
+        for entry, bundle in _visit_list(cfg, entries, deep=True):
+            errors = [f["signature"] for f in bundle.data["findings"] if f["category"] == "error"]
+            everything = [f["signature"] for f in bundle.data["findings"]]
+            expect = entry.get("expect", [])
+            if not expect and errors:  # the clean page must give no error finding
+                noisy[entry.get("name", entry["url"])] = errors
+            lost = [e for e in expect if not any(sig.startswith(e) for sig in everything)]
+            if lost:
+                failed[entry.get("name", entry["url"])] = {"expected": lost, "got": everything[:8]}
+    finally:
+        server.shutdown()
+    result = {"pages": len(entries), "failed": failed, "noisy": noisy}
+    if failed or noisy:
+        raise RuntimeError(
+            f"canary: {len(failed)} detectors silent, {len(noisy)} clean pages noisy: {json.dumps(result)[:600]}"
+        )
+    return result
 
 
 def step_regression(config, db, s):
