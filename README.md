@@ -31,6 +31,18 @@ All three speak WebDriver BiDi on `127.0.0.1` inside the shared network namespac
 
 The `reference` container runs without Docker's seccomp and AppArmor profiles, because Chromium's sandbox needs user namespaces. It has no capabilities and runs with `no-new-privileges`, and Chromium and Firefox keep their own sandboxes.
 
+## Probing pages (phase 1)
+
+`webparity probe` loads URLs or local test cases in the browsers and prints what a script returns in each. Run it where the browsers listen (inside the `reference` container's network namespace). Local files are served on `127.0.0.1`, and `localhost` is the same server on another origin, for cross-origin tests.
+
+```sh
+webparity probe testcase/test.html                          # the text of the test case's #out
+webparity probe -j "[scrollY, document.title]" https://example.com/
+webparity probe --browsers ladybird,chromium --mobile --json page.html
+```
+
+Without a script it waits up to 5 seconds for `#out` to get past a placeholder such as "running..." and prints its text, or the page title for sites.
+
 ## Development
 
 ```sh

@@ -179,8 +179,16 @@ def webdriver(base: str, method: str, path: str, body: Any = None, timeout: floa
 class Session:
     """A browser session with its BiDi client. Use ``Session.ladybird``, ``.chromium`` or ``.firefox``."""
 
-    def __init__(self, name: str, client: BidiClient, end):
+    def __init__(self, name: str, client: BidiClient, end, classic: tuple[str, str] | None = None):
         self.name, self.client, self._end = name, client, end
+        # (WebDriver base URL, session id) for Ladybird and Chromium, for the few things only classic WebDriver does
+        self.classic = classic
+
+    def classic_call(self, method: str, path: str, body: Any = None) -> Any:
+        if self.classic is None:
+            raise BidiError(f"{self.name}: no classic WebDriver session")
+        base, session_id = self.classic
+        return webdriver(base, method, f"/session/{session_id}{path}", body)
 
     def end(self) -> None:
         try:
@@ -195,7 +203,9 @@ class Session:
         if not ws_url:
             raise BidiError(f"{name}: the session has no webSocketUrl")
         session_id = value["sessionId"]
-        return cls(name, BidiClient(ws_url), lambda: webdriver(base, "DELETE", f"/session/{session_id}"))
+        return cls(
+            name, BidiClient(ws_url), lambda: webdriver(base, "DELETE", f"/session/{session_id}"), (base, session_id)
+        )
 
     @classmethod
     def ladybird(cls, base: str) -> Session:

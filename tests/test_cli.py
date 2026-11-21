@@ -2,7 +2,7 @@
 import pytest
 
 from webparity import __version__
-from webparity.cli import COMMANDS, main
+from webparity.cli import COMMANDS, IMPLEMENTED, main
 
 
 def test_no_command_prints_help(capsys):
@@ -10,7 +10,7 @@ def test_no_command_prints_help(capsys):
     assert "visit" in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("command", sorted(COMMANDS))
+@pytest.mark.parametrize("command", sorted(set(COMMANDS) - IMPLEMENTED))
 def test_commands_exist_but_are_not_implemented(command, capsys):
     assert main([command]) == 2
     assert "not implemented yet" in capsys.readouterr().err

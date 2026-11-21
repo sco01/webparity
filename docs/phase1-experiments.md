@@ -51,3 +51,11 @@ The experiments that settle the open questions from the plan before the browser 
 **Result:** compressed (as on the wire) median 0.7 MB, mean 1.6 MB, max 7.2 MB per page load; decompressed median 2.0 MB, mean 2.6 MB, max 7.9 MB. These are underestimates: cross-origin resources without `Timing-Allow-Origin` report a size of 0.
 
 **Estimate:** with three browsers and identical responses stored once, about 3 to 5 MB per visit. At about 9,000 visits a day, keeping every recording would need 27 to 45 GB a day. Keeping recordings only for visits with findings (about 9 % today) and canary pages, plus the visit bundles (about 4.7 MB each today), comes to roughly 6 to 8 GB a day. That fits four weeks of history on the current host. Measured through mitmproxy (experiment 2): 1.29 MB per visit for Ladybird and 1.34 MB for Chromium, so about 4 MB per visit for three browsers, inside the estimate.
+
+## 4. `webparity probe` against the old probe service (2026-11-21)
+
+**Question:** does `webparity probe` give the same results as today's `lbprov` (the phase 1 done criterion)?
+
+**Setup:** 20 test cases from the nightly verification (each a single HTML file), run with `lbprov` through the old probe service and with `webparity probe` in the new images, with the same Ladybird build, in all three browsers (60 results).
+
+**Result:** 45 results identical. In the other 15, `lbprov` returned the test case's placeholder ("running...", "loading...") because it read `#out` as soon as it was not empty, and `webparity probe` returned the real result, because it waits for text past the placeholder. No result was worse. One test case that navigates by itself twelve times first made Chromium's `browsingContext.navigate` fail with "navigation canceled by concurrent navigation"; `webparity probe` now treats a cancelled navigation as loaded and carries on.
