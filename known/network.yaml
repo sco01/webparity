@@ -100,3 +100,13 @@
     if (/^\/mobile(\/|$)/i.test(location.pathname)) return 'mobile url ' + location.pathname.slice(0, 40);
     const m = [...document.styleSheets].map(s => s.href || '').find(h => /main\.mobile-|\.mobile_[0-9a-f]{8}/.test(h));
     return m ? 'mobile css ' + m.slice(-60) : false;
+
+# 2026-11-21: a response with an unsupported Content-Encoding (Forter's prop.json answers `content-encoding: UTF-8`) is
+# passed through as identity for GET/HEAD/OPTIONS since #11179, but a POST still fails with a network error, because
+# RequestServer can't retry an unsafe method without libcurl's decoding (kayak.se, wegoresa.se). The error is only in
+# Ladybird's log.
+- id: post-unsupported-content-encoding
+  issue: "#15298"
+  text: "a POST response with an unsupported Content-Encoding fails to load"
+  prefix: ["failed-loads"]
+  log: 'Response could not be decoded with its Content-Encoding'
