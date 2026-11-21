@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# webparity configuration. Copy to data/config.yaml (compose mounts data/ at /data) and edit.
+# Everything has a default (src/webparity/config.py); only what you change needs to be here.
+
+# The browsers compared on every visit. Ladybird is the engine under test; Chromium is the reference.
+# Adding firefox gives a second reference, at the cost of a slower visit rate.
+browsers: [ladybird, chromium]
+
+proxy:
+  # Record every visit through the proxy. The recording is the source of truth for network traffic and makes
+  # offline replay and reduction possible. HTTP/3 becomes HTTP/2 through the proxy.
+  record: true
+  # Which recordings to keep: findings (visits with error findings), all, or none
+  keep: findings
+
+visit:
+  stable_timeout: 20   # seconds to wait for a page to stop changing
+  deep: true           # interaction steps (scroll, wheel, mobile view, menu) and a reload
+
+worker:
+  # Pause while the 1-minute load average is above this
+  max_load: 12.0
+  # No visits during these hours (local time), so a nightly build on the same host gets the CPU
+  quiet_hours: ["01:00-02:30"]
+
+web:
+  listen: 127.0.0.1:8700
+
+alerts:
+  webhook: ""                 # POST JSON {rule, state, message, time} here
+  email: {to: "", from: "", smtp: ""}   # smtp: host:port of a local relay (no TLS, no login)
+  min_visits_per_hour: 150
+  probe_endpoint: ""          # default: the WebDriver endpoints
+
+github:
+  repository: LadybirdBrowser/ladybird
+  # Anonymous, read-only. Say who you are in the user agent.
+  user_agent: "webparity (+https://github.com/sco01/webparity)"
+
+ladybird:
+  # A JSON file {"commit": ..., "date": ...} or a text file "<commit> <date> <time>" describing the build under test
+  build_info: /src/Build/release/webparity-build.json
+
+nightly:
+  build_command: ""           # run before the chain; empty if something else builds Ladybird
+  recheck_days: 7             # requeue candidate sites last visited longer ago than this
+  # Canary pages: each must produce the listed signatures (prefixes), or the chain reports a broken detector
+  canary: []
+  #  - url: http://127.0.0.1:8000/canary/layout-missing.html
+  #    expect: ["layout:missing"]
+  # Sites visited every night (shallow) to catch regressions between builds
+  regression_sites: []
