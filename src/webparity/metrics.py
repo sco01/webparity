@@ -36,7 +36,7 @@ def _now(now: float | None) -> float:
 
 
 def visits_since(db, since: float) -> int:
-    return db.one("SELECT COUNT(*) FROM visits WHERE started >= ?", (ts(since),))[0]
+    return db.one("SELECT COUNT(*) FROM own_visits WHERE started >= ?", (ts(since),))[0]
 
 
 def visits_last_hour(db, now: float | None = None) -> int:
@@ -50,7 +50,7 @@ def visits_per_hour(db, now: float | None = None, hours: int = 24) -> list[tuple
     counts = {
         row[0]: row[1]
         for row in db.q(
-            "SELECT substr(started, 1, 13) AS h, COUNT(*) FROM visits WHERE started >= ? GROUP BY h",
+            "SELECT substr(started, 1, 13) AS h, COUNT(*) FROM own_visits WHERE started >= ? GROUP BY h",
             (ts(start_hour),),
         )
     }
@@ -69,7 +69,7 @@ def queue_length(db) -> int:
 def active_workers(db, now: float | None = None, minutes: int = 15) -> list[dict[str, Any]]:
     """Workers with visits in the last ``minutes`` minutes: worker, visits, last visit."""
     rows = db.q(
-        "SELECT COALESCE(worker, '') AS worker, COUNT(*) AS visits, MAX(started) AS last FROM visits"
+        "SELECT COALESCE(worker, '') AS worker, COUNT(*) AS visits, MAX(started) AS last FROM own_visits"
         " WHERE started >= ? GROUP BY worker ORDER BY worker",
         (ts(_now(now) - minutes * 60),),
     )
@@ -79,7 +79,7 @@ def active_workers(db, now: float | None = None, minutes: int = 15) -> list[dict
 def worker_last_visits(db) -> dict[str, float]:
     """Every worker's latest visit, as seconds since the epoch."""
     out = {}
-    for row in db.q("SELECT COALESCE(worker, '') AS worker, MAX(started) AS last FROM visits GROUP BY worker"):
+    for row in db.q("SELECT COALESCE(worker, '') AS worker, MAX(started) AS last FROM own_visits GROUP BY worker"):
         t = parse_ts(row["last"])
         if t is not None:
             out[row["worker"]] = t
@@ -88,10 +88,10 @@ def worker_last_visits(db) -> dict[str, float]:
 
 def visits_by_status(db, since: float | None = None) -> dict[str, int]:
     if since is None:
-        rows = db.q("SELECT COALESCE(status, 'unknown'), COUNT(*) FROM visits GROUP BY 1 ORDER BY 1")
+        rows = db.q("SELECT COALESCE(status, 'unknown'), COUNT(*) FROM own_visits GROUP BY 1 ORDER BY 1")
     else:
         rows = db.q(
-            "SELECT COALESCE(status, 'unknown'), COUNT(*) FROM visits WHERE started >= ? GROUP BY 1 ORDER BY 1",
+            "SELECT COALESCE(status, 'unknown'), COUNT(*) FROM own_visits WHERE started >= ? GROUP BY 1 ORDER BY 1",
             (ts(since),),
         )
     return {r[0]: r[1] for r in rows}
@@ -99,7 +99,7 @@ def visits_by_status(db, since: float | None = None) -> dict[str, int]:
 
 def findings_by_category(db, since: float) -> dict[str, int]:
     rows = db.q(
-        "SELECT f.category, COUNT(*) FROM findings f JOIN visits v ON v.id = f.visit WHERE v.started >= ?"
+        "SELECT f.category, COUNT(*) FROM findings f JOIN own_visits v ON v.id = f.visit WHERE v.started >= ?"
         " GROUP BY f.category ORDER BY f.category",
         (ts(since),),
     )
@@ -127,12 +127,12 @@ def last_successful_nightly(db) -> float | None:
 
 
 def current_build(db) -> str | None:
-    row = db.one("SELECT build FROM visits WHERE build IS NOT NULL AND build != '' ORDER BY started DESC LIMIT 1")
+    row = db.one("SELECT build FROM own_visits WHERE build IS NOT NULL AND build != '' ORDER BY started DESC LIMIT 1")
     return row[0] if row else None
 
 
 def first_visit(db) -> float | None:
-    row = db.one("SELECT MIN(started) FROM visits")
+    row = db.one("SELECT MIN(started) FROM own_visits")
     return parse_ts(row[0]) if row else None
 
 

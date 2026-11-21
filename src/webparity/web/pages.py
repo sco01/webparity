@@ -161,7 +161,7 @@ def health(config: dict, db, now: float | None = None) -> str:
     last_ok = metrics.last_successful_nightly(db)
     statuses = metrics.visits_by_status(db, now - 86400)
     errors = db.one(
-        "SELECT COALESCE(SUM(errors), 0), COUNT(*) FILTER (WHERE errors > 0) FROM visits WHERE started >= ?",
+        "SELECT COALESCE(SUM(errors), 0), COUNT(*) FILTER (WHERE errors > 0) FROM own_visits WHERE started >= ?",
         (metrics.ts(now - 86400),),
     )
 
@@ -236,7 +236,7 @@ def health(config: dict, db, now: float | None = None) -> str:
     )
     out.append(f'<p class="muted">{esc(errors[1])} visits with error findings in the last 24 hours.</p>')
     recent = db.q(
-        "SELECT v.id, v.url, v.started, v.status, v.errors, v.first_error FROM visits v"
+        "SELECT v.id, v.url, v.started, v.status, v.errors, v.first_error FROM own_visits v"
         " WHERE v.started >= ? AND (v.errors > 0 OR COALESCE(v.status, '') NOT IN ('ok', 'done'))"
         " ORDER BY v.started DESC LIMIT 20",
         (metrics.ts(now - 86400),),
@@ -279,7 +279,7 @@ def findings(config: dict, db, family: str = "", detector: str = "", limit: int 
         args.append(detector)
     rows = db.q(
         "SELECT f.id, f.visit, f.signature, f.detector, f.text, v.url, v.started FROM findings f"
-        " LEFT JOIN visits v ON v.id = f.visit WHERE " + " AND ".join(where) + " ORDER BY v.started DESC, f.id DESC"
+        " JOIN own_visits v ON v.id = f.visit WHERE " + " AND ".join(where) + " ORDER BY v.started DESC, f.id DESC"
         " LIMIT ?",
         args + [limit],
     )
@@ -391,16 +391,16 @@ def candidate(config: dict, db, signature: str, bundle_dir: Callable) -> str | N
     row = db.one("SELECT * FROM candidates WHERE signature = ?", (signature,))
     sites = db.q(
         "SELECT s.domain, f.site, COUNT(*) AS n, MAX(v.started) AS last, "
-        " (SELECT v2.id FROM findings f2 JOIN visits v2 ON v2.id = f2.visit WHERE f2.signature = f.signature"
+        " (SELECT v2.id FROM findings f2 JOIN own_visits v2 ON v2.id = f2.visit WHERE f2.signature = f.signature"
         "  AND f2.site = f.site ORDER BY v2.started DESC LIMIT 1) AS visit"
-        " FROM findings f LEFT JOIN sites s ON s.id = f.site LEFT JOIN visits v ON v.id = f.visit"
+        " FROM findings f LEFT JOIN sites s ON s.id = f.site LEFT JOIN own_visits v ON v.id = f.visit"
         " WHERE f.signature = ? GROUP BY f.site ORDER BY last DESC LIMIT 500",
         (signature,),
     )
     if row is None and not sites:
         return None
     visits = db.q(
-        "SELECT v.*, f.text AS finding FROM findings f JOIN visits v ON v.id = f.visit WHERE f.signature = ?"
+        "SELECT v.*, f.text AS finding FROM findings f JOIN own_visits v ON v.id = f.visit WHERE f.signature = ?"
         " ORDER BY v.started DESC LIMIT 20",
         (signature,),
     )

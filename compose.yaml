@@ -33,6 +33,7 @@ services:
       - no-new-privileges:true
     cap_drop: [ALL]
     volumes:
+      - /etc/localtime:/etc/localtime:ro  # quiet hours and timestamps in the host's local time
       - proxy-ca:/etc/webparity:ro
     ports:
       - "127.0.0.1:${WEBPARITY_WEB_PORT:-8700}:8700"
@@ -46,6 +47,7 @@ services:
     network_mode: "service:reference"
     depends_on: [reference]
     volumes:
+      - /etc/localtime:/etc/localtime:ro  # quiet hours and timestamps in the host's local time
       - proxy-conf:/home/webparity/.mitmproxy
       - proxy-ca:/export
       - ${WEBPARITY_DATA:-./data}/recordings:/data/recordings
@@ -66,6 +68,7 @@ services:
     environment:
       WEBPARITY_PROXY: ${WEBPARITY_PROXY:-127.0.0.1:8790}
     volumes:
+      - /etc/localtime:/etc/localtime:ro  # quiet hours and timestamps in the host's local time
       # Mounted at /src/Build/release, the path Ladybird's CI image builds at (the binaries use an absolute RUNPATH).
       - ${LADYBIRD_BUILD:?set LADYBIRD_BUILD to a Ladybird Build/release directory}:/src/Build/release:ro
       - proxy-ca:/etc/webparity:ro
@@ -83,6 +86,7 @@ services:
     environment:
       WEBPARITY_CONFIG: /data/config.yaml
     volumes:
+      - /etc/localtime:/etc/localtime:ro  # quiet hours and timestamps in the host's local time
       - ${WEBPARITY_DATA:-./data}:/data
       - proxy-ca:/etc/webparity:ro
       - ladybird-run:/run/webparity/ladybird:ro
@@ -100,6 +104,7 @@ services:
     environment:
       WEBPARITY_CONFIG: /data/config.yaml
     volumes:
+      - /etc/localtime:/etc/localtime:ro  # quiet hours and timestamps in the host's local time
       - ${WEBPARITY_DATA:-./data}:/data
 
   alerts:
@@ -113,6 +118,7 @@ services:
     environment:
       WEBPARITY_CONFIG: /data/config.yaml
     volumes:
+      - /etc/localtime:/etc/localtime:ro  # quiet hours and timestamps in the host's local time
       - ${WEBPARITY_DATA:-./data}:/data
 
 volumes:

@@ -151,6 +151,10 @@ MIGRATIONS: list[str] = [
     """
     ALTER TABLE issues ADD COLUMN target INTEGER
     """,
+    # 3: webparity's own visits, without the previous explorer's imported ones (for monitoring)
+    """
+    CREATE VIEW own_visits AS SELECT * FROM visits WHERE source = 'webparity'
+    """,
 ]
 
 

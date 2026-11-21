@@ -9,7 +9,7 @@ set -euo pipefail
 ACTION=${1:?up or down}; N=${2:-1}
 P=wp$N; TAG=${TAG:-dev}
 DATA=$(realpath "${WEBPARITY_DATA:-./data}")
-H=(--security-opt no-new-privileges:true --cap-drop ALL --restart unless-stopped)
+H=(--security-opt no-new-privileges:true --cap-drop ALL --restart unless-stopped -v /etc/localtime:/etc/localtime:ro)
 
 if [ "$ACTION" = down ]; then
   for s in alerts web worker ladybird proxy reference; do docker rm -f "$P-$s" >/dev/null 2>&1 || true; done
@@ -24,7 +24,7 @@ BUILD_INFO=(); [ -n "${WEBPARITY_BUILD_INFO:-}" ] && BUILD_INFO=(-v "$WEBPARITY_
 
 docker run -d --name "$P-reference" --shm-size 2g --cpu-shares 256 --memory 8g \
   --security-opt seccomp=unconfined --security-opt apparmor=unconfined --security-opt no-new-privileges:true \
-  --cap-drop ALL --restart unless-stopped -e WEBPARITY_PROXY=127.0.0.1:8790 \
+  --cap-drop ALL --restart unless-stopped -e WEBPARITY_PROXY=127.0.0.1:8790 -v /etc/localtime:/etc/localtime:ro \
   -v "$P-proxy-ca:/etc/webparity:ro" "${PORTS[@]}" "webparity-reference:$TAG" >/dev/null
 NET=(--network "container:$P-reference")
 docker run -d --name "$P-proxy" "${H[@]}" "${NET[@]}" \
