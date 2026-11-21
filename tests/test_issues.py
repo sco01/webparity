@@ -473,6 +473,9 @@ def test_import_gallery(env):
         "\n## Kommentarer\n\n| Issue | Fil |\n|---|---|\n"
         "| [#100](u) | [100-comment.md](100-comment.md) – POSTED 2026-11-04 |\n"
         "| [#100](u) | [100-unposted.md](100-unposted.md) (draft) |\n"
+        "| [#100](u) | [100-ej.md](100-ej.md) (utkast 2026-11-09, ej postad) |\n"
+        "| [#100](u) | [100-old.md](100-old.md) |\n"
+        "| [#100](u) | [100-done.md](100-done.md) – utkast 2026-11-21 – POSTAD av Kim 2026-11-21 |\n"
         "\n## Queue\n\n| # | Class | Draft | Effect |\n|---|---|---|---|\n| 1 | 3 | [q.md](q.md) | x |\n"
     )
     (gallery / "issues" / "one.md").write_text(
@@ -486,10 +489,24 @@ def test_import_gallery(env):
     )
     (gallery / "issues" / "100-comment.md").write_text("A comment.\n")
     (gallery / "issues" / "100-unposted.md").write_text("Not posted.\n")
+    (gallery / "issues" / "100-ej.md").write_text("Not posted either.\n")
+    (gallery / "issues" / "100-old.md").write_text("Old, unmarked.\n")
+    (gallery / "issues" / "100-done.md").write_text("Drafted, then posted.\n")
+    (gallery / "issues" / "q.md").write_text(
+        "NOTE\n\n---\n\n## Title\nQueued one\n\n## HTML/SVG/etc. source for a reduced test case\n<p>q</p>\n"
+    )
     db.x("UPDATE candidates SET issue = '#200', status = 'filed'")
 
     counts = import_gallery(config, db, gallery)
-    assert counts == {"issues": 2, "comments": 1, "test_cases": 2, "missing_drafts": []}
+    assert counts == {"issues": 2, "comments": 2, "queued": 3, "test_cases": 3, "missing_drafts": []}
+    queued = db.one("SELECT * FROM issues WHERE title = 'Queued one'")
+    assert queued["state"] == "draft" and queued["kind"] == "issue" and queued["number"] is None
+    assert queued["note"].startswith("gallery queue #1, class 3") and queued["test_case"] == "test-cases/imported/q"
+    unposted = db.one("SELECT * FROM issues WHERE draft LIKE '%/100-unposted.md'")
+    assert unposted["state"] == "draft" and unposted["kind"] == "comment"
+    assert db.one("SELECT state FROM issues WHERE draft LIKE '%/100-ej.md'")["state"] == "draft"
+    assert db.one("SELECT 1 FROM issues WHERE draft LIKE '%/100-old.md'") is None
+    assert db.one("SELECT state FROM issues WHERE draft LIKE '%/100-done.md'")["state"] == "posted"
     first = db.one("SELECT * FROM issues WHERE number = 100")
     assert first["title"] == "First | one" and first["state"] == "closed" and first["closed_by"] == "#101"
     assert first["filed"] == "2026-11-01" and first["closed"] == "2026-11-03"
@@ -500,7 +517,23 @@ def test_import_gallery(env):
     second = db.one("SELECT * FROM issues WHERE number = 200")
     assert second["state"] == "filed" and json.loads(second["signatures"]) == [SIG]
     assert (data / second["test_case"] / "test.html").is_file()
-    assert db.one("SELECT COUNT(*) FROM issues WHERE kind = 'comment'")[0] == 1
+    assert db.one("SELECT COUNT(*) FROM issues WHERE kind = 'comment'")[0] == 4
 
     assert import_gallery(config, db, gallery)["issues"] == 2  # again: same rows
-    assert db.one("SELECT COUNT(*) FROM issues")[0] == 3
+    assert db.one("SELECT COUNT(*) FROM issues")[0] == 7
+
+    # The queued draft is filed as #300 and the comment posted: the same rows are updated, nothing is left in review
+    index = gallery / "issues" / "INDEX.md"
+    text = index.read_text().replace(
+        "| [#200](u) | 2026-11-02 | open | Second | [two.md](two.md) |\n",
+        "| [#200](u) | 2026-11-02 | open | Second | [two.md](two.md) |\n"
+        "| [#300](u) | 2026-11-22 | open | Queued one | [q.md](q.md) |\n",
+    )
+    text = text.replace("| 1 | 3 | [q.md](q.md) | x |\n", "").replace("(draft)", "– POSTED 2026-11-22")
+    index.write_text(text)
+    import_gallery(config, db, gallery)
+    assert db.one("SELECT COUNT(*) FROM issues")[0] == 7
+    filed = db.one("SELECT * FROM issues WHERE id = ?", (queued["id"],))
+    assert filed["number"] == 300 and filed["state"] == "filed"
+    assert db.one("SELECT state FROM issues WHERE id = ?", (unposted["id"],))["state"] == "posted"
+    assert db.one("SELECT COUNT(*) FROM issues WHERE state = 'draft'")[0] == 1  # 100-ej.md is still waiting

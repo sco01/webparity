@@ -7,9 +7,14 @@ The gallery layout this reads: ``issues/INDEX.md`` with a table row per filed is
 with the test case under "HTML/SVG/etc. source for a reduced test case" (several files separated by
 ``<!-- name.ext -->`` lines), or a ``testfall/...`` path mentioned in the draft.
 
-Drafts are copied to ``data_dir/drafts/imported/`` and test cases to ``data_dir/test-cases/imported/<N>/``, so the
-data directory is self-contained. Running it again updates the same rows. This works on the user's local data only;
-nothing it reads belongs in the repository.
+The filing queue (a section whose heading starts with "Postkö" or "Queue", rows ``| pos | class | [draft.md](draft.md) |
+effect |``) and comments marked as not yet posted ("utkast", "ej postad", "draft") come in as rows in state
+``draft``, so they show on the review page; when a
+queued draft is later filed or posted, the same row is updated, and a queued draft that left the queue without being
+filed gets state ``withdrawn``.
+Drafts are copied to ``data_dir/drafts/imported/`` and test cases to ``data_dir/test-cases/imported/<N>/`` (a queued
+draft's under its file name), so the data directory is self-contained. Running it again updates the same rows.
+This works on the user's local data only; nothing it reads belongs in the repository.
 """
 
 from __future__ import annotations
@@ -22,6 +27,7 @@ from webparity.db import DB, now
 from webparity.issues.common import (
     SOURCE_HEADING,
     data_dir,
+    draft_title,
     dump_signatures,
     join_front_matter,
     section,
@@ -30,8 +36,13 @@ from webparity.issues.common import (
 )
 
 ISSUE_ROW = re.compile(r"^\| \[#(\d+)\]\([^)]*\) \| ([^|]*) \| ([^|]*) \| (.*) \| \[([^\]]+\.md)\]")
+QUEUE_ROW = re.compile(r"^\| (\d+) \| (\d+) \| \[([^\]]+\.md)\]\([^)]*\) \| (.*?) \|\s*$")
+QUEUE_NOTE = "gallery queue"
+# A comment row counts as waiting only when it says so; older rows without a mark are left alone
+UNPOSTED = re.compile(r"(?i)\butkast\b|\bej postad\b|\bdraft\b|\bnot posted\b")
+STALE = re.compile(r"(?i)\binaktuell\b|\bwithdrawn\b|\bstale\b")
 COMMENT_ROW = re.compile(r"^\| \[#(\d+)\]\([^)]*\) \| \[([^\]]+\.md)\]\([^)]*\)(.*)$")
-POSTED = re.compile(r"\b(posted|postad)\b[^0-9]*(\d{4}-\d{2}-\d{2})?", re.I)
+POSTED = re.compile(r"(?<!ej )(?<!not )\b(posted|postad)\b[^0-9]*(\d{4}-\d{2}-\d{2})?", re.I)
 TEST_CASE_MENTION = re.compile(r"\btestfall/[\w./-]+")
 
 
@@ -112,7 +123,8 @@ def import_gallery(config: dict, db: DB, gallery_dir: str | Path) -> dict:
     if not index.is_file():
         raise FileNotFoundError(f"no issues/INDEX.md in {gallery}")
     cases_root = data_dir(config) / "test-cases" / "imported"
-    counts: dict = {"issues": 0, "comments": 0, "test_cases": 0, "missing_drafts": []}
+    counts: dict = {"issues": 0, "comments": 0, "queued": 0, "test_cases": 0, "missing_drafts": []}
+    queued: set[str] = set()
     section_name = ""
     for line in index.read_text(encoding="utf-8").splitlines():
         if line.startswith("## "):
@@ -122,12 +134,60 @@ def import_gallery(config: dict, db: DB, gallery_dir: str | Path) -> dict:
             number, filed, status, title, name = m.groups()
             _import_issue(config, db, gallery, cases_root, int(number), filed.strip(), status, title, name, counts)
             continue
+        q = QUEUE_ROW.match(line)
+        if q and section_name.startswith(("postkö", "queue", "filing queue")):
+            position, issue_class, name, effect = q.groups()
+            note = f"{QUEUE_NOTE} #{position}, class {issue_class}: {effect.strip()}"[:500]
+            _import_queued(config, db, gallery, cases_root, name, "issue", None, note, counts, queued)
+            continue
         c = COMMENT_ROW.match(line)
         if c and section_name.startswith(("kommentar", "comment")):
-            posted = POSTED.search(c.group(3))
+            posted = POSTED.search(c.group(3))  # "ej postad" is not posted; "utkast … – POSTAD" is
+            unposted = not posted and UNPOSTED.search(c.group(3))
             if posted:
                 _import_comment(config, db, gallery, int(c.group(1)), c.group(2), posted.group(2), counts)
+            elif unposted and not STALE.search(c.group(3)):
+                note = f"{QUEUE_NOTE}: comment on #{c.group(1)}"
+                _import_queued(
+                    config, db, gallery, cases_root, c.group(2), "comment", int(c.group(1)), note, counts, queued
+                )
+    # Queued drafts that left the queue without being filed or posted
+    for row in db.q("SELECT id, draft FROM issues WHERE state = 'draft' AND note LIKE ?", (f"{QUEUE_NOTE}%",)):
+        if row["draft"] not in queued:
+            db.x("UPDATE issues SET state = 'withdrawn' WHERE id = ?", (row["id"],))
     return counts
+
+
+def _import_queued(config, db, gallery, cases_root, draft_name, kind, comment_on, note, counts, queued) -> None:
+    """A draft waiting in the gallery's filing queue (or a comment not yet posted): an ``issues`` row in state draft."""
+    gallery_draft = gallery / "issues" / draft_name
+    if not gallery_draft.is_file():
+        counts["missing_drafts"].append(draft_name)
+        return
+    text = gallery_draft.read_text(encoding="utf-8")
+    test_case = None
+    if kind == "issue":
+        test_case = _relative(config, _test_case(gallery, text, Path(draft_name).stem, cases_root))
+        counts["test_cases"] += test_case is not None
+    meta = {"kind": kind, "test_case": test_case or ""}
+    if comment_on:
+        meta["comment_on"] = comment_on
+    draft = str(_copy_draft(config, gallery_draft, meta))
+    queued.add(draft)
+    title = draft_title(text) or (f"Comment on #{comment_on}" if comment_on else Path(draft_name).stem)
+    row = db.one("SELECT id, state FROM issues WHERE draft = ?", (draft,))
+    if row is None:
+        db.x(
+            "INSERT INTO issues (draft, title, kind, state, test_case, note, created)"
+            " VALUES (?, ?, ?, 'draft', ?, ?, ?)",
+            (draft, title, kind, test_case, note, now()),
+        )
+    elif row["state"] in ("draft", "withdrawn"):
+        db.x(
+            "UPDATE issues SET title = ?, kind = ?, state = 'draft', test_case = ?, note = ? WHERE id = ?",
+            (title, kind, test_case, note, row["id"]),
+        )
+    counts["queued"] += 1
 
 
 def _import_issue(config, db, gallery, cases_root, number, filed, status, title, draft_name, counts) -> None:
@@ -142,7 +202,9 @@ def _import_issue(config, db, gallery, cases_root, number, filed, status, title,
     signatures = [r["signature"] for r in db.q("SELECT signature FROM candidates WHERE issue = ?", (f"#{number}",))]
     meta = {"signatures": signatures, "test_case": test_case or "", "kind": "issue", "issue": number, "filed": filed}
     draft = str(_copy_draft(config, gallery_draft, meta)) if text else None
-    row = db.one("SELECT id FROM issues WHERE number = ?", (number,))
+    row = db.one("SELECT id FROM issues WHERE number = ?", (number,)) or (
+        db.one("SELECT id FROM issues WHERE draft = ? AND number IS NULL", (draft,)) if draft else None
+    )
     values = (
         draft,
         title,
@@ -165,8 +227,8 @@ def _import_issue(config, db, gallery, cases_root, number, filed, status, title,
     else:
         db.x(
             "UPDATE issues SET draft = ?, title = ?, state = ?, signatures = ?, test_case = ?, filed = ?, closed = ?,"
-            " closed_by = ?, verified = ?, verified_result = ? WHERE id = ?",
-            (*values, row["id"]),
+            " closed_by = ?, verified = ?, verified_result = ?, number = ?, note = 'imported' WHERE id = ?",
+            (*values, number, row["id"]),
         )
     counts["issues"] += 1
 
@@ -178,9 +240,12 @@ def _import_comment(config, db, gallery, number, draft_name, posted, counts) -> 
         return
     draft = str(_copy_draft(config, gallery_draft, {"kind": "comment", "comment_on": number, "posted": posted or ""}))
     note = f"comment on #{number}"
-    if db.one("SELECT id FROM issues WHERE draft = ?", (draft,)) is None:
+    row = db.one("SELECT id, state FROM issues WHERE draft = ?", (draft,))
+    if row is None:
         db.x(
             "INSERT INTO issues (draft, kind, state, filed, note, created) VALUES (?, 'comment', 'posted', ?, ?, ?)",
             (draft, posted, note, now()),
         )
+    elif row["state"] in ("draft", "withdrawn"):
+        db.x("UPDATE issues SET state = 'posted', filed = ?, note = ? WHERE id = ?", (posted, note, row["id"]))
     counts["comments"] += 1
