@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: BSD-2-Clause
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+# Local data: never committed (visit bundles, recordings, databases, site lists)
+data/
+*.db
+*.warc
+*.warc.gz
+config.yaml
