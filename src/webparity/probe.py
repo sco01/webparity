@@ -110,8 +110,8 @@ def resolve_targets(targets: list[str], root: str | None) -> tuple[list[tuple[st
 class Browser:
     """One browser with a long-lived session (or a fresh one per target)."""
 
-    def __init__(self, name: str, mobile: bool):
-        self.name, self.mobile = name, mobile
+    def __init__(self, name: str, mobile: bool, proxy: dict | None = None):
+        self.name, self.mobile, self.proxy = name, mobile, proxy
         self.session: Session | None = None
         self.context: str | None = None
 
@@ -121,7 +121,12 @@ class Browser:
             self.session = Session.ladybird(endpoint)
         elif self.name == "chromium":
             size = MOBILE if self.mobile else DESKTOP
-            self.session = Session.chromium(endpoint, [*CHROMIUM_ARGS, f"--window-size={size[0]},{size[1]}"])
+            args = [*CHROMIUM_ARGS, f"--window-size={size[0]},{size[1]}"]
+            if self.proxy:  # the recording proxy (Ladybird and Firefox get it from their containers)
+                args.append(f"--proxy-server={self.proxy['address']}")
+                if self.proxy.get("spki"):
+                    args.append(f"--ignore-certificate-errors-spki-list={self.proxy['spki']}")
+            self.session = Session.chromium(endpoint, args)
         else:
             self.session = Session.firefox(endpoint)
         self.context = self.session.client.command("browsingContext.getTree", {})["contexts"][0]["context"]
@@ -226,10 +231,11 @@ def probe(
     mobile: bool = False,
     fresh: bool = False,
     root: str | None = None,
+    proxy: dict | None = None,
 ) -> list[Result]:
     resolved, server = resolve_targets(targets, root)
     results: list[Result] = []
-    open_browsers = {name: Browser(name, mobile) for name in (browsers or list(ENDPOINTS))}
+    open_browsers = {name: Browser(name, mobile, proxy) for name in (browsers or list(ENDPOINTS))}
     try:
         for url, test_case in resolved:
             for name, browser in open_browsers.items():

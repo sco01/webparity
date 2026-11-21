@@ -8,6 +8,10 @@ for _ in $(seq 1 50); do [ -e /tmp/.X11-unix/X99 ] && break; sleep 0.1; done
 
 chromedriver --port="$CHROMEDRIVER_PORT" --allowed-ips=127.0.0.1 &
 
+# Firefox reads its enterprise policy (which installs the proxy CA) at start, so wait for the CA first.
+if [ -n "${WEBPARITY_PROXY:-}" ]; then
+  for _ in $(seq 1 300); do [ -s /etc/webparity/proxy-ca.pem ] && break; sleep 0.2; done
+fi
 PROFILE=$(mktemp -d /tmp/firefox-profile.XXXXXX)
 {
   echo 'user_pref("browser.shell.checkDefaultBrowser", false);'

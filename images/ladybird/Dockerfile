@@ -14,7 +14,8 @@ COPY fonts/local.conf /etc/fonts/local.conf
 COPY ladybird/start.sh /usr/local/bin/webparity-ladybird
 RUN fc-cache -f >/dev/null \
  && chmod 755 /usr/local/bin/webparity-ladybird \
- && (getent passwd 2001 >/dev/null || useradd --create-home --uid 2001 webparity)
+ && (getent passwd 2001 >/dev/null || useradd --create-home --uid 2001 webparity) \
+ && mkdir -p /run/webparity/ladybird && chown 2001:2001 /run/webparity/ladybird
 USER 2001
 ENV LADYBIRD_BUILD=/src/Build/release LADYBIRD_WEBDRIVER_PORT=9616 HOME=/tmp QT_QPA_PLATFORM=offscreen
 ENTRYPOINT ["webparity-ladybird"]

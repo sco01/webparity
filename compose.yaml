@@ -1,15 +1,29 @@
 # SPDX-License-Identifier: BSD-2-Clause
-# Phase 1: the browsers. All services share the reference container's network namespace, so the browsers and the
-# worker reach each other on 127.0.0.1 and nothing is exposed outside.
-#   LADYBIRD_BUILD=/path/to/Build/release docker compose up --build
+# webparity: the browsers, the recording proxy and the worker. All services share the reference container's network
+# namespace (and PID namespace, so the worker can measure the browsers' CPU), so they reach each other on 127.0.0.1
+# and nothing is exposed outside except the web interface, which listens on 127.0.0.1 of the host.
+#
+#   cp config.example.yaml data/config.yaml        # then edit
+#   LADYBIRD_BUILD=/path/to/Build/release docker compose up -d --build
+#
+# One project is one visit at a time. For parallel visits run several projects on the same data directory:
+#   docker compose -p webparity-2 up -d reference ladybird proxy worker
+x-hardening: &hardening
+  security_opt:
+    - no-new-privileges:true
+  cap_drop: [ALL]
+  restart: unless-stopped
+
 services:
   reference:
     build:
       context: images
       dockerfile: reference/Dockerfile
     shm_size: 2gb
+    cpu_shares: 256
+    mem_limit: 8g
     environment:
-      WEBPARITY_PROXY: ${WEBPARITY_PROXY:-}
+      WEBPARITY_PROXY: ${WEBPARITY_PROXY:-127.0.0.1:8790}
     # Chromium's sandbox needs user namespaces, which Docker's default seccomp and AppArmor profiles block. The container
     # runs without them, but with no capabilities and no-new-privileges; Chromium and Firefox keep their own sandboxes,
     # which are what protects against the sites' content.
@@ -18,18 +32,89 @@ services:
       - apparmor=unconfined
       - no-new-privileges:true
     cap_drop: [ALL]
+    volumes:
+      - proxy-ca:/etc/webparity:ro
+    ports:
+      - "127.0.0.1:${WEBPARITY_WEB_PORT:-8700}:8700"
     restart: unless-stopped
 
+  proxy:
+    <<: *hardening
+    build:
+      context: images
+      dockerfile: proxy/Dockerfile
+    network_mode: "service:reference"
+    depends_on: [reference]
+    volumes:
+      - proxy-conf:/home/webparity/.mitmproxy
+      - proxy-ca:/export
+      - ${WEBPARITY_DATA:-./data}/recordings:/data/recordings
+
   ladybird:
+    <<: *hardening
     build:
       context: images
       dockerfile: ladybird/Dockerfile
     network_mode: "service:reference"
-    depends_on: [reference]
-    security_opt:
-      - no-new-privileges:true
-    cap_drop: [ALL]
+    pid: "service:reference"
+    depends_on: [reference, proxy]
+    shm_size: 2gb
+    # Browsers get a low CPU weight, so a nightly build on the same host wins, and a memory limit, so a runaway page
+    # kills a WebContent process instead of the host.
+    cpu_shares: 256
+    mem_limit: 12g
+    environment:
+      WEBPARITY_PROXY: ${WEBPARITY_PROXY:-127.0.0.1:8790}
     volumes:
       # Mounted at /src/Build/release, the path Ladybird's CI image builds at (the binaries use an absolute RUNPATH).
       - ${LADYBIRD_BUILD:?set LADYBIRD_BUILD to a Ladybird Build/release directory}:/src/Build/release:ro
-    restart: unless-stopped
+      - proxy-ca:/etc/webparity:ro
+      - ladybird-run:/run/webparity/ladybird
+
+  worker:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: images/worker/Dockerfile
+    network_mode: "service:reference"
+    pid: "service:reference"
+    depends_on: [reference, ladybird, proxy]
+    command: ["worker"]
+    environment:
+      WEBPARITY_CONFIG: /data/config.yaml
+    volumes:
+      - ${WEBPARITY_DATA:-./data}:/data
+      - proxy-ca:/etc/webparity:ro
+      - ladybird-run:/run/webparity/ladybird:ro
+      - ${LADYBIRD_BUILD}:/src/Build/release:ro
+
+  web:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: images/worker/Dockerfile
+    network_mode: "service:reference"
+    depends_on: [reference]
+    command: ["web", "--listen", "0.0.0.0:8700"]
+    environment:
+      WEBPARITY_CONFIG: /data/config.yaml
+    volumes:
+      - ${WEBPARITY_DATA:-./data}:/data
+
+  alerts:
+    <<: *hardening
+    build:
+      context: .
+      dockerfile: images/worker/Dockerfile
+    network_mode: "service:reference"
+    depends_on: [reference]
+    command: ["alerts"]
+    environment:
+      WEBPARITY_CONFIG: /data/config.yaml
+    volumes:
+      - ${WEBPARITY_DATA:-./data}:/data
+
+volumes:
+  proxy-conf:
+  proxy-ca:
+  ladybird-run:
