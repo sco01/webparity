@@ -1,0 +1,10 @@
+{
+ "detector": "css",
+ "must": [
+  "css-dropped:background-image:-webkit-radial-gradient"
+ ],
+ "must_not": [],
+ "categories": {
+  "css-dropped:background-image:-webkit-radial-gradient": "info"
+ }
+}

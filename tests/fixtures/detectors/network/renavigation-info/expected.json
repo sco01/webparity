@@ -1,0 +1,10 @@
+{
+ "detector": "network",
+ "must": [
+  "renavigation"
+ ],
+ "must_not": [],
+ "categories": {
+  "renavigation": "info"
+ }
+}

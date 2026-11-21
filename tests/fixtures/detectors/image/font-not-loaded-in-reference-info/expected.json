@@ -1,0 +1,9 @@
+{
+ "detector": "image",
+ "must": [
+  "font-not-loaded-in-reference"
+ ],
+ "must_not": [
+  "font-error"
+ ]
+}

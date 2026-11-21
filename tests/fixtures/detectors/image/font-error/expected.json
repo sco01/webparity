@@ -1,0 +1,7 @@
+{
+ "detector": "image",
+ "must": [
+  "font-error:woff2"
+ ],
+ "must_not": []
+}

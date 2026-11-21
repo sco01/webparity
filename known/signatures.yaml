@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# Signatures that are explained everywhere: known Ladybird bugs and known non-bugs, matched on the signature alone.
+
+# 2026-11-13: logical -webkit- aliases (-webkit-padding-start, -webkit-margin-before ...) are dropped; 18 of 18 samples had
+# the alias. The page test logical-webkit-aliases-dropped covers the layout differences they cause.
+- issue: "#14574"
+  text: "logical -webkit- aliases (-webkit-padding-start, -webkit-margin-before ...) are dropped"
+  prefix: ["css-dropped:margin-block-end:", "css-dropped:margin-block-start:", "css-dropped:margin-inline-end:",
+           "css-dropped:margin-inline-start:", "css-dropped:padding-inline-end:", "css-dropped:padding-inline-start:"]
+
+# 2026-11-12: -webkit-opacity is an alias only in Chromium; Firefox drops it too. 352 of 355 rules had the value 1.
+- issue: "not-a-bug:webkit-opacity"
+  text: "-webkit-opacity is a Chromium-only alias (Firefox drops it too)"
+  prefix: ["css-dropped:opacity:"]
+
+# Background images are fetched for CSS rules that match nothing and for display: none
+- issue: "#14069"
+  text: "background images fetched for unmatched rules and display: none"
+  prefix: ["more-resources:css:"]
+
+- issue: "#14081"
+  text: "named cross-origin sibling frames through a parent in another process"
+  prefix: ["script-error:SecurityError: Can't access property 'MessengerLauncherFrame'"]
+
+# 2026-11-08: sites using GPU without checking for it
+- issue: "missing-feature:webgpu"
+  text: "Ladybird has no WebGPU (navigator.gpu / GPU)"
+  prefix: ["script-error:[ReferenceError] 'GPU' is not defined"]
+
+- issue: "#14108"
+  text: "cross-origin HTML loaded with <script> is run (no ORB)"
+  prefix: ["script-error:[SyntaxError] Unexpected token '<'"]
+
+# 2026-11-12: Ladybird has HTMLElement.scrollParent (CSSOM View, read-only), which Chromium and Firefox lack; a site
+# builder's animation script assigns el.scrollParent in strict mode and gets a TypeError. Correct per spec.
+- issue: "not-a-bug:scroll-parent"
+  text: "HTMLElement.scrollParent exists in Ladybird (per spec); scripts that assign it throw"
+  prefix: ["script-error:[TypeError] Cannot set property 'scrollParent'"]

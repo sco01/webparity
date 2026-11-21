@@ -1,0 +1,12 @@
+{
+ "detector": "page",
+ "must": [
+  "overflow-hidden"
+ ],
+ "must_not": [
+  "overflow"
+ ],
+ "categories": {
+  "overflow-hidden": "info"
+ }
+}

@@ -1,0 +1,7 @@
+{
+ "detector": "page",
+ "must": [
+  "shorter-page"
+ ],
+ "must_not": []
+}

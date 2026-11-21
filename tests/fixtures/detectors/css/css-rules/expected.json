@@ -1,0 +1,7 @@
+{
+ "detector": "css",
+ "must": [
+  "css-rules"
+ ],
+ "must_not": []
+}

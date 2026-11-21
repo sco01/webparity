@@ -1,0 +1,7 @@
+{
+ "detector": "image",
+ "must": [
+  "broken-images"
+ ],
+ "must_not": []
+}

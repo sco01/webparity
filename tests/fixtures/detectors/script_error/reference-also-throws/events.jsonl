@@ -1,0 +1,1 @@
+{"t": 0, "browser": "chromium", "step": "probe", "method": "log.entryAdded", "context": "C1", "top": true, "type": "javascript", "level": "error", "text": "Uncaught TypeError: something else"}

@@ -1,0 +1,9 @@
+{
+ "detector": "crash",
+ "must": [
+  "crash:VERIFY !layout_is_known_stale() @ Document.cpp"
+ ],
+ "must_not": [
+  "security:"
+ ]
+}

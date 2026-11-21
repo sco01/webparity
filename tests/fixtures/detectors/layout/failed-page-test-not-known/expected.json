@@ -1,0 +1,10 @@
+{
+ "detector": "layout",
+ "must": [
+  "layout:missing:block>block"
+ ],
+ "must_not": [],
+ "known": {
+  "layout:missing:block>block": null
+ }
+}

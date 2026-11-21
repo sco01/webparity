@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# Known bug patterns behind script errors (script-error:… signatures) and JavaScript engine bugs.
+
+# 2026-11-12: Animation.commitStyles() is missing. Sleeknote reports the TypeError via reportError on a Proxy, so it shows
+# up as "Not an object of type Window" (on a site); other pages may get the error directly.
+- id: sleeknote-commit-styles-missing
+  issue: "#14484"
+  fixed: "d111bc6ad5"
+  text: "Animation.commitStyles() is missing; Sleeknote's popup does not open"
+  regex: '^script-error:\[TypeError\] Not an object of type Window$'
+  js: |
+    const a = Array.from(document.body ? document.body.children : []).find(e => /^SLEEKNOTE-.*-ANCHOR$/.test(e.tagName));
+    return a ? a.tagName.toLowerCase() : (document.getElementById('sleeknoteScript') ? 'sleeknoteScript' : false);
+
+- issue: "#14484"
+  fixed: "d111bc6ad5"
+  text: "Animation.commitStyles() is missing (the signature points out the cause)"
+  regex: '^script-error:\[TypeError\] undefined is not a function \(evaluated from ''[\w.<>]+\.commitStyles''\)$'
+
+# 2026-11-17: no microtask checkpoint between the parser's scripts. Cookiebot's MutationObserver does not get to switch
+# the scripts to text/plain, so they run first by the parser and then again by dequeueNonAsyncScripts; let/const give
+# Redeclaration.
+- id: cookiebot-scripts-run-twice
+  issue: "#14974"
+  fixed: "fac9d864ba5"
+  text: "no microtask checkpoint between the parser's scripts; Cookiebot runs the scripts twice"
+  regex: '^script-error:\[SyntaxError\] Redeclaration of top level variable '
+  js: |
+    return !!document.querySelector('script[src*="consent.cookiebot.com/uc.js"]');
+
+# 2026-11-12: JIT inlining – a closure created in an inlined call reads another closure's variables (same function). Wix
+# blogs: URI.js in the blog widget throws "o[n]" and the post disappears. The check runs in Ladybird: the page has loaded
+# Wix's blog widget (communities-blog-ooi) but lacks the post title.
+- id: jit-inlining-closure-wrong-environment-wix-blog
+  issue: "#14503"
+  fixed: "14fe27960f"
+  text: "JIT inlining gives a closure the wrong environment; the Wix blog post disappears (several sites)"
+  prefix: ["layout:", "mobile-layout:", "less-content", "shorter-page", "image-differs"]
+  run_in: ladybird
+  js: |
+    const wix = performance.getEntriesByType('resource').some(e => /communities-blog-ooi\/[^/]+\/PostViewerWidget/.test(e.name));
+    return wix && !document.querySelector('[data-hook="post-title"]') ? 'wix blog without post' : false;
+
+# 2026-11-17: WebGL's Float32List/Int32List/Uint32List lack [AllowShared] – uniform*v and others throw for views on shared
+# wasm memory (Flutter's skwasm_heavy: on a site the app gets stuck on the splash screen). The same error message comes
+# from TextDecoder (#14783), so the check runs the feature test in Ladybird and requires a <canvas> on the page.
+- id: webgl-rejects-shared-memory-views
+  issue: "#14924"
+  text: "WebGL rejects views on shared memory (uniform4fv and others); Flutter skwasm gets stuck"
+  regex: '^script-error:\[TypeError\] The array buffer object cannot be a SharedArrayBuffer$'
+  run_in: ladybird
+  js: |
+    if (!document.querySelector('canvas, flutter-view, flt-glass-pane')) return false;   // Flutter's canvas lives in a shadow root
+    const gl = document.createElement('canvas').getContext('webgl');
+    if (!gl) return false;
+    const m = new WebAssembly.Memory({initial: 1, maximum: 1, shared: true});
+    try { gl.vertexAttrib4fv(0, new Float32Array(m.buffer, 0, 4)); return false; }
+    catch (e) { return 'vertexAttrib4fv: ' + e.message; }

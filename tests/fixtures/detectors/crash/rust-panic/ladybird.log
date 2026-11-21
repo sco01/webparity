@@ -1,0 +1,3 @@
+5.0 WebContent(3): thread 'main' panicked at src/layout/update_layout.rs:812:9:
+layout did not stabilize after 16 passes
+note: run with RUST_BACKTRACE=1

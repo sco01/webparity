@@ -1,0 +1,10 @@
+{
+ "detector": "page",
+ "must": [
+  "object-fallback"
+ ],
+ "must_not": [],
+ "categories": {
+  "object-fallback": "info"
+ }
+}

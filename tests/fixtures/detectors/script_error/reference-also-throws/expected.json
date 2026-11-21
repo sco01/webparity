@@ -1,0 +1,7 @@
+{
+ "detector": "script_error",
+ "must": [],
+ "must_not": [
+  "script-error:"
+ ]
+}

@@ -1,0 +1,7 @@
+{
+ "detector": "script_error",
+ "must": [
+  "script-error:[ReferenceError] gtag is not defined"
+ ],
+ "must_not": []
+}

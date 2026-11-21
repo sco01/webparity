@@ -1,0 +1,7 @@
+{
+ "detector": "network",
+ "must": [
+  "missing-resources"
+ ],
+ "must_not": []
+}

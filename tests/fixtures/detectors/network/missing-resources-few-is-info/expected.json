@@ -1,0 +1,12 @@
+{
+ "detector": "network",
+ "must": [
+  "missing-resources-few"
+ ],
+ "must_not": [
+  "missing-resources"
+ ],
+ "categories": {
+  "missing-resources-few": "info"
+ }
+}

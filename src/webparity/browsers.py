@@ -23,6 +23,8 @@ EVENTS = [
     "browsingContext.contextCreated",
     "browsingContext.navigationStarted",
     "browsingContext.load",
+    "network.responseCompleted",
+    "network.fetchError",
 ]
 
 

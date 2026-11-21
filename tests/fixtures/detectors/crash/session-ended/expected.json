@@ -1,0 +1,7 @@
+{
+ "detector": "crash",
+ "must": [
+  "crash:unknown location"
+ ],
+ "must_not": []
+}

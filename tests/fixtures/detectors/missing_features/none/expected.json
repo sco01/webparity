@@ -1,0 +1,7 @@
+{
+ "detector": "missing_features",
+ "must": [],
+ "must_not": [
+  "missing-feature:"
+ ]
+}

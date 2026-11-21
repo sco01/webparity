@@ -1,0 +1,10 @@
+{
+ "detector": "page",
+ "must": [
+  "not-loading:crash"
+ ],
+ "must_not": [],
+ "categories": {
+  "not-loading:crash": "info"
+ }
+}

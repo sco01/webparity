@@ -1,0 +1,145 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# Known bug patterns that explain crashes (crash:… signatures) and panics found in the Ladybird log.
+
+# 2026-11-14: the WebDriver screenshot waits for remote frames (82e8a4453c?) and then paints with a stale layout →
+# VERIFY in canvas_color_scheme. Needs an iframe from another site and DOM changes outside rendering (Cookiebot's hidden
+# consentcdn iframe, Vimeo). Runs in the reference browser: an iframe whose host belongs to another site.
+- id: screenshot-cross-site-iframe-stale-layout
+  issue: "#14647"
+  fixed: "304212972f5"
+  text: "screenshot with a cross-site iframe: VERIFY layout_is_known_stale in canvas_color_scheme"
+  prefix: ["crash:VERIFY !document().layout_is_known_stale() @ Node.cpp"]
+  js: |
+    const site = h => h.split('.').slice(-2).join('.');
+    const has = [...document.querySelectorAll('iframe')].some(f => { try { const u = new URL(f.src, location.href);
+      return /^https?:$/.test(u.protocol) && site(u.hostname) !== site(location.hostname); } catch (e) { return false; } });
+    return has ? 'cross-site-iframe' : false;
+
+- id: pseudo-element-transform-animation-and-transition
+  issue: "#14199"
+  fixed: "5f19d6f289"
+  text: "::before/::after with a transform animation and a transform transition (Shopify Impulse)"
+  prefix: ["crash:VERIFY computed_values @ Length.cpp"]
+  js: |
+    const keyframes = new Set(), anim = []; let transition = false;
+    const walk = rs => { for (const r of rs) {
+      if (r instanceof CSSKeyframesRule) { if (/transform/.test(r.cssText)) keyframes.add(r.name); continue; }
+      if (r instanceof CSSStyleRule) { const st = r.style;
+        if (/::?(after|before)\b/.test(r.selectorText || '') && st.animationName && st.animationName !== 'none') anim.push(...st.animationName.split(',').map(x => x.trim()));
+        if (/(^|,\s*)transform\b/.test(st.transitionProperty || '') && parseFloat(st.transitionDuration || '0') > 0) transition = true; }
+      try { if (r.cssRules && r.cssRules.length) walk(r.cssRules); } catch (e) {} } };
+    for (const ss of document.styleSheets) { try { walk(ss.cssRules); } catch (e) {} }
+    return transition && anim.some(n => keyframes.has(n));
+
+# 2026-11-11: location.reload() on a frame whose new document is still loading → null dereference (a site with a
+# frameset whose script runs parent.frmKK.location.reload()). Test: the page has frames, and a script in the page or in a
+# same-origin frame (inline or fetched) reloads another frame.
+- id: location-reload-other-frame-while-loading
+  issue: "#14329"
+  fixed: "fff9d8c8a6"
+  text: "location.reload() on another frame while its document is loading (frames/frameset)"
+  prefix: ["crash:SIGSEGV in WebContent"]
+  async: true
+  js: |
+    setTimeout(() => done(false), 10000);
+    const RE = /(parent|top|frames|contentWindow|opener)\b[\w$.\[\]'"]*\.location\.reload\s*\(/;
+    const docs = [document], srcs = new Set(), texts = [];
+    for (let i = 0; i < docs.length && i < 20; i++) for (const f of docs[i].querySelectorAll('frame, iframe')) {
+      try { if (f.contentDocument) docs.push(f.contentDocument); } catch (e) {} }
+    if (docs.length < 2 && !document.querySelector('frame, iframe')) return done(false);
+    for (const d of docs) for (const s of d.querySelectorAll('script')) {
+      if (s.src) { try { const u = new URL(s.src, d.baseURI); if (u.origin === location.origin) srcs.add(u.href); } catch (e) {} }
+      else texts.push(s.textContent); }
+    const hit = texts.find(t => RE.test(t)); if (hit) return done(hit.match(RE)[0]);
+    Promise.all([...srcs].slice(0, 30).map(u => fetch(u).then(r => r.text()).then(t => RE.test(t) ? u + ': ' + t.match(RE)[0] : null).catch(() => null)))
+      .then(x => { x = x.filter(Boolean); done(x.length ? x.slice(0, 2) : false); });
+
+# 2026-11-11: a font-size transition on a size container (Limepark collage menu on Sitevision sites) → style/layout does
+# not stabilise on resize (Document.cpp:2442 or update_layout.rs "did not stabilize").
+- id: font-size-transition-on-size-container
+  issue: "#14340"
+  fixed: "0e835f6ac2"
+  text: "font-size transition on a size container (container-type) – does not stabilise on resize"
+  prefix: ["crash:VERIFY false @ Document.cpp", "crash:update_layout.rs"]
+  js: |
+    for (const e of Array.from(document.querySelectorAll('body *')).slice(0, 6000)) {
+      const c = getComputedStyle(e); if (!c.containerType || c.containerType === 'normal') continue;
+      const props = c.transitionProperty.split(',').map(x => x.trim()), durations = c.transitionDuration.split(',').map(parseFloat);
+      if (props.some((p, i) => (p === 'all' || p === 'font-size') && (durations[i % durations.length] || 0) > 0))
+        return e.tagName.toLowerCase() + (e.className ? '.' + String(e.className).trim().split(/\s+/)[0] : '') + ' ' + c.containerType + ', transition ' + c.transitionProperty;
+    }
+    return false;
+
+# 2026-11-11: the same lock without a transition (a site; first a comment on #14340, own issue #14926 2026-11-17): a size
+# container with a running animation inside, and a registered non-inherited custom property (@property … inherits:
+# false) on the page.
+- id: animation-in-size-container-with-registered-property
+  issue: "#14926"
+  fixed: "623f89b834c"
+  text: "animation in a size container + registered non-inherited custom property (first a comment on #14340, not fixed by 0e835f6ac2)"
+  prefix: ["crash:VERIFY false @ Document.cpp", "crash:update_layout.rs"]
+  js: |
+    let registered = false; const walk = rs => { for (const r of rs) { if (r instanceof CSSPropertyRule && !r.inherits) registered = true; try { if (r.cssRules) walk(r.cssRules); } catch (e) {} } };
+    for (const ss of document.styleSheets) { try { walk(ss.cssRules); } catch (e) {} }
+    if (!registered) return false;
+    for (const c of document.querySelectorAll('body *')) {   // no 6000 limit: the site that showed it has a large Cookiebot dialog first
+      const cs = getComputedStyle(c); if (!cs.containerType || cs.containerType === 'normal') continue;
+      for (const e of c.querySelectorAll('*')) { const a = getComputedStyle(e).animationName;
+        if (a && a !== 'none') return (c.className ? String(c.className).trim().split(/\s+/)[0] : c.tagName) + ' > animation ' + a; }
+    }
+    return false;
+
+# 2026-11-12: an absolutely/fixed positioned display: table that gets new content while an element is added after it (a
+# site with a fixed header using d-xl-table and a stylesheet in the header that pauses the parser).
+- id: abspos-table-changed-with-new-sibling
+  issue: "#14437"
+  fixed: "9fcaeda951e"
+  text: "absolutely/fixed positioned display: table + a change inside it and a new sibling in the same update"
+  prefix: ["crash:sizing_context.rs: a table wrapper's measurement run"]
+  js: |
+    for (const e of Array.from(document.querySelectorAll('body *')).slice(0, 6000)) {
+      const c = getComputedStyle(e);
+      if ((c.position === 'absolute' || c.position === 'fixed') && (c.display === 'table' || c.display === 'inline-table'))
+        return e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + ' ' + c.position + ' ' + c.display;
+    }
+    return false;
+
+# 2026-11-12: <button> with display: flex/inline-flex, aspect-ratio and ::before content → panic in style_values.rs
+# (several sites: the mobile menu button only shows below 600 px, so the crash comes with the mobile view). The check runs
+# in the reference browser at mobile width (mobile: always) and ignores display; empty ::before content does not crash.
+- id: button-flex-aspect-ratio-before-content
+  issue: "#14488"
+  fixed: "e91afa3003c"
+  text: "<button> with flex, aspect-ratio and ::before content"
+  prefix: ["crash:style_values.rs: styled node must publish its style container"]
+  mobile: always
+  js: |
+    for (const b of Array.from(document.querySelectorAll('button')).slice(0, 2000)) {
+      if (getComputedStyle(b).aspectRatio === 'auto') continue;
+      const c = getComputedStyle(b, '::before').content;
+      if (c && c !== 'none' && c !== 'normal' && c !== '""') return 'button' + (b.className ? '.' + String(b.className).split(' ')[0] : '') + ' ar ' + getComputedStyle(b).aspectRatio + ' before ' + Array.from(c).map(x => x.codePointAt(0).toString(16)).join(',');
+    }
+    return false;
+
+# 2026-11-16: commitStyles() on a WAAPI animation of a custom property when the element has another animation that reads
+# the property (transform: translateX(var(--x))) → panic in finish_animation_sample (style_compute.rs ~7654). anime.js v4
+# does commitStyles + cancel in onfinish. A reduced test case reproduced it 5/5 on f92f6785cc.
+- id: commit-styles-custom-property-panic
+  issue: "#14814"
+  fixed: "f2ebbd88810"
+  text: "commitStyles() on an animation of a custom property: panic 'a sampled effect remains published'"
+  prefix: ["crash:style_compute.rs: a sampled effect"]
+  log: 'a sampled effect remains published with the same generation'
+
+- id: vue2-template-compiler-memory
+  issue: "#14219"
+  fixed: "5f19d6f289"
+  text: "memory explosion: substring + regex (the Vue 2 template compiler on a template in the DOM)"
+  prefix: ["crash:out-of-memory"]
+  js: |
+    for (const e of document.querySelectorAll('body, body *')) {
+      const v = e.__vue__; if (!v) continue;
+      const ver = (v.$root && v.$root.constructor && (v.$root.constructor.version || (v.$root.constructor.super || {}).version)) || '';
+      if (!ver || ver.startsWith('2')) return 'Vue ' + (ver || '2');
+    }
+    return window.Vue && String(window.Vue.version || '').startsWith('2') ? 'Vue ' + window.Vue.version : false;

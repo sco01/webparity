@@ -1,0 +1,8 @@
+{
+ "detector": "crash",
+ "must": [
+  "crash:SIGSEGV in WebContent",
+  "security:SIGSEGV in WebContent"
+ ],
+ "must_not": []
+}

@@ -1,0 +1,7 @@
+{
+ "detector": "image",
+ "must": [],
+ "must_not": [
+  "image-differs"
+ ]
+}

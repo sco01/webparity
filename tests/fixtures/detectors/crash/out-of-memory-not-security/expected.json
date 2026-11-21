@@ -1,0 +1,9 @@
+{
+ "detector": "crash",
+ "must": [
+  "crash:out-of-memory (log)"
+ ],
+ "must_not": [
+  "security:"
+ ]
+}

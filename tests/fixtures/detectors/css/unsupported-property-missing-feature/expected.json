@@ -1,0 +1,12 @@
+{
+ "detector": "css",
+ "must": [
+  "missing-feature:css:zoom"
+ ],
+ "must_not": [
+  "css-dropped:zoom:"
+ ],
+ "categories": {
+  "missing-feature:css:zoom": "info"
+ }
+}

@@ -1,0 +1,2 @@
+{"t": 0, "browser": "ladybird", "step": "load", "method": "log.entryAdded", "context": "C1", "top": true, "type": "javascript", "level": "error", "text": "Uncaught ReferenceError: gtag is not defined"}
+{"t": 0, "browser": "ladybird", "step": "load", "method": "log.entryAdded", "context": "C1", "top": true, "type": "javascript", "level": "error", "text": "Uncaught ReferenceError: gtag is not defined"}

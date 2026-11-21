@@ -1,0 +1,9 @@
+{
+ "detector": "image",
+ "must": [
+  "cookie-banner-differs"
+ ],
+ "must_not": [
+  "image-differs"
+ ]
+}

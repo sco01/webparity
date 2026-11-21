@@ -1,0 +1,7 @@
+{
+ "detector": "mobile",
+ "must": [],
+ "must_not": [
+  "mobile-layout:"
+ ]
+}

@@ -1,0 +1,7 @@
+{
+ "detector": "performance",
+ "must": [],
+ "must_not": [
+  "cpu-idle"
+ ]
+}

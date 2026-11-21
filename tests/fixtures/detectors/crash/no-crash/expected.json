@@ -1,0 +1,8 @@
+{
+ "detector": "crash",
+ "must": [],
+ "must_not": [
+  "crash:",
+  "security:"
+ ]
+}

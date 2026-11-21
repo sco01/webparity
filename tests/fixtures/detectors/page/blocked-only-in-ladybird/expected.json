@@ -1,0 +1,13 @@
+{
+ "detector": "page",
+ "must": [
+  "blocked:ladybird-only"
+ ],
+ "must_not": [
+  "not-loading:",
+  "less-content"
+ ],
+ "categories": {
+  "blocked:ladybird-only": "info"
+ }
+}

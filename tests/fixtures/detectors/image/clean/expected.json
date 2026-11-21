@@ -1,0 +1,9 @@
+{
+ "detector": "image",
+ "must": [],
+ "must_not": [
+  "image-differs",
+  "blank-page",
+  "empty-iframe"
+ ]
+}

@@ -1,0 +1,10 @@
+{
+ "detector": "page",
+ "must": [
+  "not-loading:ssl"
+ ],
+ "must_not": [],
+ "categories": {
+  "not-loading:ssl": "error"
+ }
+}

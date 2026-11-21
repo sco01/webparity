@@ -1,0 +1,105 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# Known bug patterns that explain scrolling problems (a locked page, the wheel scrolling the wrong box, focus scrolling).
+
+# 2026-11-14: the wheel does not chain to the page over a fixed overlay with a visibility:hidden box (overflow auto, with
+# content to scroll) that sticks out of an overflow:hidden parent (a site's cookie dialog, inactive tabs). Runs in the
+# reference browser: such a hidden scrollable box sticking out of its clipping parent inside a fixed element.
+- id: wheel-hidden-scroller-outside-clip-in-fixed-overlay
+  issue: "#14659"
+  fixed: "c2a18328d50"
+  text: "the wheel does not chain over a fixed overlay with a hidden scrollable box outside an overflow:hidden clip"
+  prefix: ["scroll-locked"]
+  js: |
+    for (const e of document.querySelectorAll('body *')) {
+      const s = getComputedStyle(e);
+      if (s.visibility !== 'hidden' || !/auto|scroll/.test(s.overflowY + s.overflowX)) continue;
+      if (e.scrollHeight <= e.clientHeight + 1 && e.scrollWidth <= e.clientWidth + 1) continue;
+      let clip = null, fixed = false;
+      for (let p = e.parentElement; p; p = p.parentElement) { const ps = getComputedStyle(p);
+        if (!clip && /hidden|clip/.test(ps.overflowY + ps.overflowX)) clip = p; if (ps.position === 'fixed') { fixed = true; break; } }
+      if (!clip || !fixed) continue;
+      const r = e.getBoundingClientRect(), k = clip.getBoundingClientRect();
+      if (r.bottom > k.bottom + 1 || r.right > k.right + 1) return 'hidden scroller ' + e.tagName.toLowerCase() + '.' + String(e.className).slice(0, 30);
+    }
+    return false;
+
+# 2026-11-14: <iframe scrolling="no"> is ignored – the wheel scrolls the frame's content instead of the page (a site,
+# Outlook booking). Runs in the reference browser: the iframe under the middle of the window (where the wheel probe
+# scrolls) has scrolling no/off/noscroll.
+- id: iframe-scrolling-no-ignored
+  issue: "#14700"
+  fixed: "be67f0d9071"
+  text: "<iframe scrolling=no> is ignored: the wheel scrolls the frame instead of the page"
+  prefix: ["scroll-locked"]
+  js: |
+    for (const e of document.elementsFromPoint(innerWidth / 2, innerHeight / 2)) {
+      if (e.tagName !== 'IFRAME') continue;
+      const v = (e.getAttribute('scrolling') || '').trim().toLowerCase();
+      if (['no', 'off', 'noscroll'].includes(v)) return 'iframe scrolling=' + v + ' ' + String(e.src).slice(0, 60);
+    }
+    return false;
+
+# 2026-11-16: the wheel over an overflow:hidden box (or overflow:auto with overflow only sideways) in a fixed element
+# scrolls nothing when the page has (had) an iframe. Seen on several sites.
+- id: wheel-stuck-over-hidden-box-in-fixed-with-iframe
+  issue: "#14822"
+  text: "the wheel gets stuck over an overflow:hidden box in a fixed element when the page has an iframe"
+  prefix: ["scroll-locked"]
+  run_in: ladybird
+  js: |
+    if (![...document.querySelectorAll('iframe')].some(f => getComputedStyle(f).display !== 'none')) return false;
+    let e = document.elementFromPoint(innerWidth / 2, innerHeight / 2), box = false;
+    for (; e && e !== document.documentElement; e = e.parentElement) { const c = getComputedStyle(e);
+      if (c.position === 'fixed') return box;
+      const dx = e.scrollWidth > e.clientWidth, dy = e.scrollHeight > e.clientHeight;
+      if ((c.overflowY === 'hidden' && (dx || dy)) || (c.overflowY === 'auto' && dx && !dy)) box = true; }
+    return false;
+
+# 2026-11-16: an empty block with margins last in an overflow:auto box makes the box scrollable (the overflow counts the
+# margin twice, or the height loses it after <span><p>…</p></span><br>) and the box takes the wheel. Several sites
+# (Usercentrics).
+- id: empty-last-block-makes-auto-box-scrollable
+  issue: "#14823"
+  fixed: "2ba4110cd5b"
+  text: "an empty block last in an overflow:auto box makes it scrollable (Usercentrics)"
+  prefix: ["scroll-locked"]
+  run_in: ladybird
+  js: |
+    const hit = (r, x, y) => { let e = r.elementFromPoint(x, y);
+      while (e && e.shadowRoot) { const f = e.shadowRoot.elementFromPoint(x, y); if (!f || f === e) break; e = f; } return e; };
+    let e = hit(document, innerWidth / 2, innerHeight / 2);
+    while (e) { const c = getComputedStyle(e);
+      if (/(auto|scroll)/.test(c.overflowY) && e.scrollHeight > e.clientHeight && e.scrollHeight - e.clientHeight <= 60) {
+        for (let l = e.lastElementChild; l; l = l.lastElementChild) { const lc = getComputedStyle(l);
+          if (lc.display === 'block' && !l.textContent.trim() && l.getBoundingClientRect().height === 0 &&
+              parseFloat(lc.marginTop) + parseFloat(lc.marginBottom) > 0) return true; } }
+      e = e.parentElement || (e.getRootNode().host || null); }
+    return false;
+
+- id: container-type-on-body-blocks-overflow-propagation
+  issue: "#14254"
+  fixed: "ae6f81c0811"
+  text: "container-type on body does not stop overflow propagating to the viewport, so the page cannot be scrolled (Teamtailor)"
+  prefix: ["scroll-locked", "overflow", "mobile-overflow"]
+  js: |
+    const h = getComputedStyle(document.documentElement), b = document.body && getComputedStyle(document.body);
+    if (!b || h.overflowX !== 'visible' || h.overflowY !== 'visible' || b.containerType === 'normal' || b.containerType === '') return false;
+    return [b.overflowX, b.overflowY].some(v => v !== 'visible') ? 'body ' + b.containerType + ' ' + b.overflowX + '/' + b.overflowY : false;
+
+# 2026-11-15: focus() scrolls with block/inline "nearest" in Ladybird (Focus.cpp run_focusing_steps), the spec and the
+# other engines use "center" – on several sites (autofocus) the field ends up in the middle of the view in the reference
+# browser and at the bottom edge in Ladybird, so the first screen differs. Runs in the reference browser: a focused element
+# (not in a fixed/sticky layer) whose bottom edge lies below the first screen.
+- id: focus-scrolls-nearest-instead-of-center
+  issue: "#14760"
+  fixed: "432aa560bd2"
+  text: "focus() scrolls to the edge (nearest) instead of the center"
+  prefix: ["image-differs"]
+  js: |
+    const a = document.activeElement;
+    if (!a || a === document.body || a === document.documentElement || a.tagName === 'IFRAME') return false;
+    for (let e = a; e && e !== document.documentElement; e = e.parentElement || (e.getRootNode() && e.getRootNode().host)) {
+      const p = getComputedStyle(e).position; if (p === 'fixed' || p === 'sticky') return false; }
+    const r = a.getBoundingClientRect(); if (!r.width || !r.height) return false;   // a 0-high widget on one site: no scrolling
+    const y = r.top + scrollY;
+    return y + r.height > innerHeight ? 'focus ' + a.tagName.toLowerCase() + (a.id ? '#' + a.id.slice(0, 30) : '') + ' y=' + Math.round(y) : false;

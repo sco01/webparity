@@ -1,0 +1,12 @@
+{
+ "detector": "layout",
+ "must": [
+  "layout-differs-a-lot"
+ ],
+ "must_not": [
+  "layout:"
+ ],
+ "categories": {
+  "layout-differs-a-lot": "info"
+ }
+}

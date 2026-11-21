@@ -1,0 +1,2 @@
+12.3 WebContent(27): VERIFICATION FAILED: !layout_is_known_stale() at ./Libraries/LibWeb/DOM/Document.cpp:2442
+12.3 WebContent(27): SIGILL

@@ -77,6 +77,20 @@ def compact_event(event: dict, browser: str, step: str, top_context: str | None)
                 f"{f.get('functionName') or '?'} {f.get('url', '')[:200]}:{f.get('lineNumber')}:{f.get('columnNumber')}"
                 for f in frames[:8]
             ]
+    elif method.startswith("network."):
+        context = params.get("context")
+        request = params.get("request") or {}
+        response = params.get("response") or {}
+        out.update(
+            {
+                "context": context,
+                "top": context == top_context,
+                "url": (request.get("url") or "")[:500],
+                "request_method": request.get("method"),
+                "status": response.get("status"),
+                "error": params.get("errorText"),
+            }
+        )
     else:
         context = params.get("context")
         out.update({"context": context, "top": context == top_context, "url": (params.get("url") or "")[:500]})

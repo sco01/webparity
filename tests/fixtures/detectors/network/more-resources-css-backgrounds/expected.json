@@ -1,0 +1,7 @@
+{
+ "detector": "network",
+ "must": [
+  "more-resources:css:svg"
+ ],
+ "must_not": []
+}

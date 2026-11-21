@@ -1,0 +1,9 @@
+{
+ "detector": "image",
+ "must": [
+  "blank-page"
+ ],
+ "must_not": [
+  "image-differs"
+ ]
+}

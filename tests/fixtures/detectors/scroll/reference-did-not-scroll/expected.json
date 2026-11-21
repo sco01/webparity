@@ -1,0 +1,7 @@
+{
+ "detector": "scroll",
+ "must": [],
+ "must_not": [
+  "scroll-locked"
+ ]
+}

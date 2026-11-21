@@ -1,0 +1,9 @@
+{
+ "detector": "page",
+ "must": [
+  "overflow"
+ ],
+ "must_not": [
+  "overflow-hidden"
+ ]
+}

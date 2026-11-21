@@ -86,7 +86,8 @@ services:
       - ${WEBPARITY_DATA:-./data}:/data
       - proxy-ca:/etc/webparity:ro
       - ladybird-run:/run/webparity/ladybird:ro
-      - ${LADYBIRD_BUILD}:/src/Build/release:ro
+      # The Ladybird checkout (read-only, for "is this fix in the build"), or only the build when not set
+      - ${LADYBIRD_SOURCE:-${LADYBIRD_BUILD}/../..}:/src:ro
 
   web:
     <<: *hardening

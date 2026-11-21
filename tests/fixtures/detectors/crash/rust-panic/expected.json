@@ -1,0 +1,7 @@
+{
+ "detector": "crash",
+ "must": [
+  "crash:update_layout.rs: layout did not stabilize after N passes"
+ ],
+ "must_not": []
+}

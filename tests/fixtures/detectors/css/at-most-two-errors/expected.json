@@ -1,0 +1,10 @@
+{
+ "detector": "css",
+ "must": [
+  "css-dropped:mask-image:linear-gradient",
+  "css-dropped:clip-path:path"
+ ],
+ "must_not": [
+  "css-dropped:filter:drop-shadow"
+ ]
+}

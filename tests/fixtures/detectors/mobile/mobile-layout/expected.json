@@ -1,0 +1,7 @@
+{
+ "detector": "mobile",
+ "must": [
+  "mobile-layout:missing:block>block"
+ ],
+ "must_not": []
+}

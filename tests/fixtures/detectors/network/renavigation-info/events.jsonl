@@ -1,0 +1,5 @@
+{"t": 0, "browser": "ladybird", "step": "load", "method": "browsingContext.navigationStarted", "context": "C1", "top": true, "url": "https://www.example.test/?n=0"}
+{"t": 0, "browser": "ladybird", "step": "load", "method": "browsingContext.navigationStarted", "context": "C1", "top": true, "url": "https://www.example.test/?n=1"}
+{"t": 0, "browser": "ladybird", "step": "load", "method": "browsingContext.navigationStarted", "context": "C1", "top": true, "url": "https://www.example.test/?n=2"}
+{"t": 0, "browser": "ladybird", "step": "load", "method": "browsingContext.navigationStarted", "context": "C1", "top": true, "url": "https://www.example.test/?n=3"}
+{"t": 0, "browser": "ladybird", "step": "load", "method": "browsingContext.navigationStarted", "context": "C1", "top": true, "url": "https://www.example.test/?n=4"}

@@ -1,0 +1,9 @@
+{
+ "detector": "network",
+ "must": [
+  "reference-smaller-page"
+ ],
+ "must_not": [
+  "more-resources:"
+ ]
+}

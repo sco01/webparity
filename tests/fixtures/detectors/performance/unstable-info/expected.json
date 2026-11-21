@@ -1,0 +1,10 @@
+{
+ "detector": "performance",
+ "must": [
+  "unstable"
+ ],
+ "must_not": [],
+ "categories": {
+  "unstable": "info"
+ }
+}

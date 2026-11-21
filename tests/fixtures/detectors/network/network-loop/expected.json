@@ -1,0 +1,7 @@
+{
+ "detector": "network",
+ "must": [
+  "network-loop:css"
+ ],
+ "must_not": []
+}

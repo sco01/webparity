@@ -1,0 +1,11 @@
+{
+ "detector": "network",
+ "must": [],
+ "must_not": [
+  "more-resources:",
+  "fewer-resources",
+  "failed-loads",
+  "missing-resources",
+  "network-loop:"
+ ]
+}

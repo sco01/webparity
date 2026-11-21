@@ -1,0 +1,8 @@
+{
+ "detector": "page",
+ "must": [
+  "empty-root",
+  "zero-size-text"
+ ],
+ "must_not": []
+}

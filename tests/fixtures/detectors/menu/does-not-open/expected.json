@@ -1,0 +1,7 @@
+{
+ "detector": "menu",
+ "must": [
+  "menu"
+ ],
+ "must_not": []
+}

@@ -1,0 +1,7 @@
+{
+ "detector": "video",
+ "must": [
+  "video:not-started"
+ ],
+ "must_not": []
+}

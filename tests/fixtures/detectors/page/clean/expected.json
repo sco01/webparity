@@ -1,0 +1,12 @@
+{
+ "detector": "page",
+ "must": [],
+ "must_not": [
+  "less-content",
+  "shorter-page",
+  "overflow",
+  "empty-root",
+  "not-loading:",
+  "blocked:"
+ ]
+}

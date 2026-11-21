@@ -1,0 +1,7 @@
+{
+ "detector": "layout",
+ "must": [
+  "layout:position:block>block"
+ ],
+ "must_not": []
+}

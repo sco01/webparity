@@ -1,0 +1,102 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# Known bug patterns behind network loops, repeated fetches, slow loading and server responses that differ for Ladybird.
+
+# 2026-11-17: every <link rel=stylesheet> fetches its file again – identical links (in the document or cloned into the
+# shadow roots of web components) do not share the fetch as in Chromium/Firefox. On one site a button component clones an
+# icon stylesheet into every shadow root (440 links, 440 fetches); on others the same CSS is linked ~50 times in the
+# document, or 93 product fragments each bring a <link> to the same stylesheet and the duplicates are removed afterwards
+# (147 fetches).
+- id: identical-stylesheet-links-fetched-separately
+  issue: "#14925"
+  text: "identical stylesheet links are fetched once each (one site: 440 fetches of the same icon stylesheet)"
+  regex: '^network-loop:css$'
+  run_in: ladybird
+  js: |
+    const c = {};
+    const walk = r => { for (const l of r.querySelectorAll('link[rel~=stylesheet][href]')) c[l.href] = (c[l.href] || 0) + 1;
+                        for (const e of r.querySelectorAll('*')) if (e.shadowRoot) walk(e.shadowRoot); };
+    walk(document);
+    const [href, n] = Object.entries(c).sort((a, b) => b[1] - a[1])[0] || [];
+    if (n >= 20) return href.split('/').pop().split('?')[0] + ' ×' + n;
+    // 2026-11-17: one site inserts fetched product fragments with their own <link> and removes the duplicates afterwards,
+    // so also count Resource Timing (Ladybird gives initiatorType "css" even for <link>, so #14392's @import url("")
+    // is excluded by requiring that the stylesheet has no @import)
+    const r = {};
+    for (const e of performance.getEntriesByType('resource'))
+        if (/\.css(\?|$)/.test(e.name)) r[e.name] = (r[e.name] || 0) + 1;
+    const hasImport = u => [...document.styleSheets].some(s => { try { return s.href === u && [...s.cssRules].some(x => x instanceof CSSImportRule); } catch { return true; } });
+    const [u, m] = Object.entries(r).filter(([u]) => !hasImport(u)).sort((a, b) => b[1] - a[1])[0] || [];
+    return m >= 20 ? u.split('/').pop().split('?')[0] + ' ×' + m + ' (Resource Timing)' : false;
+
+# 2026-11-11: #14392 (filed by us). A stylesheet that imports itself – even @import url("") – is refetched without end in
+# Ladybird and the page never finishes. ReachMee's job listings (an iframe from *.reachmee.com) have it in every customer's
+# stylesheets; reachmee.com was also blocked in the test container, so there an empty frame shows in Ladybird instead.
+- id: stylesheet-imports-itself
+  issue: "#14392"
+  fixed: "0f46d55c504"
+  text: "a stylesheet that imports itself (@import url(\"\"), e.g. ReachMee's job listings) reloads without end"
+  prefix: ["slow-load", "layout:", "image-differs", "less-content", "shorter-page", "fewer-resources", "zero-size-text",
+           "mobile-layout:", "script-error:", "console:", "network-loop:"]
+  async: true
+  js: |
+    setTimeout(() => done(false), 10000);
+    const docs = [document];
+    for (let i = 0; i < docs.length && i < 20; i++) for (const f of docs[i].querySelectorAll('iframe, frame')) {
+      try { if (/(^|\.)reachmee\.com$/.test(new URL(f.src, docs[i].baseURI).hostname)) return done('reachmee frame ' + f.src.slice(0, 80)); } catch (e) {}
+      try { if (f.contentDocument) docs.push(f.contentDocument); } catch (e) {} }
+    const isSelf = (r, sheet) => { try { return r.href === '' || new URL(r.href, sheet.href || document.baseURI).href === sheet.href; } catch (e) { return false; } };
+    const toRead = [];
+    const walk = (sheet, depth) => { let rules; try { rules = sheet.cssRules; } catch (e) { if (sheet.href) toRead.push(sheet.href); return null; }
+      for (const r of rules) if (r instanceof CSSImportRule) { if (isSelf(r, sheet)) return (sheet.href || 'inline') + ' @import ' + JSON.stringify(r.href);
+        if (r.styleSheet && depth < 5) { const x = walk(r.styleSheet, depth + 1); if (x) return x; } }
+      return null; };
+    for (const d of docs) for (const sheet of d.styleSheets) { const x = walk(sheet, 0); if (x) return done(x.slice(0, 160)); }
+    const RE = /@import\s+(url\(\s*(""|'')?\s*\)|""|'')/;
+    Promise.all(toRead.slice(0, 20).map(h => fetch(h).then(r => r.text()).then(t => RE.test(t) ? h : null).catch(() => null)))
+      .then(x => { x = x.filter(Boolean); done(x.length ? x[0].slice(0, 120) + ' @import url("")' : false); });
+
+# 2026-11-16: every text node/comment inserted into a <select> rebuilds the whole option list and runs selectedness
+# (HTMLSelectElement::children_changed – the fast path only covers <option>), so one option per line becomes O(n²) while
+# parsing: on one site 4 × 4875 options (DCL 20 s), on another 6938 (28 s). Runs in the reference browser: a select with
+# at least 1000 options with other child nodes (whitespace, comments) in between.
+- id: select-one-option-per-line-quadratic
+  issue: "#14852"
+  text: "a select with one option per line is parsed in quadratic time"
+  prefix: ["slow-load", "not-loading"]
+  js: |
+    for (const s of document.querySelectorAll('select')) {
+      let o = 0, a = 0;
+      for (const n of s.childNodes) { if (n.nodeName === 'OPTION') o++; else if (n.nodeType === 3 || n.nodeType === 8) a++; }
+      for (const g of s.querySelectorAll(':scope > optgroup')) for (const n of g.childNodes) { if (n.nodeName === 'OPTION') o++; else if (n.nodeType === 3 || n.nodeType === 8) a++; }
+      if (o >= 1000 && a >= o / 2) return 'select whitespace ' + o + ' options, ' + a + ' other nodes';
+    }
+    return false;
+
+# 2026-11-16: RegExp.exec with a ^-anchored pattern searches for the pattern's literal in the whole string (LibRegex vm.rs
+# fails_required_literal_hint before the fast path for anchored patterns) – Vue 2's template compiler becomes O(n²): one
+# site (Vue 2.7, ~900 kB DOM template, DCL 15–27 s), another (Vue 2.6, 240 kB, timeout). Runs in the reference browser: an
+# element near body with a Vue 2 instance (__vue__) whose markup is over 150 kB.
+- id: anchored-regexp-literal-search-vue2-template
+  issue: "#14864"
+  fixed: "d320e73c49d"
+  text: "an anchored RegExp searches for its literal in the whole string – Vue 2 templates take quadratic time"
+  prefix: ["slow-load", "not-loading"]
+  js: |
+    for (const e of document.querySelectorAll('body > *, body > * > *, body > * > * > *'))
+      if (e.__vue__ && e.outerHTML.length > 150000) return 'vue2 template ' + Math.round(e.outerHTML.length / 1000) + ' kB';
+    return false;
+
+# Mobile view (2026-11-10): the reference browser gets the desktop version at 390 px.
+- id: server-sends-mobile-version-to-ladybird
+  issue: "#14443"
+  text: "the server gives Ladybird the mobile version in a desktop window (Wix, a publisher; UA sniffing – #14443)"
+  prefix: ["layout:", "image-differs", "less-content", "shorter-page", "overflow", "fewer-resources", "zero-size-text",
+           "mobile-layout:", "mobile-overflow"]
+  run_in: ladybird
+  js: |
+    if (innerWidth < 1000 || !document.body) return false;
+    if (document.body.classList.contains('device-mobile-optimized')) return 'wix';
+    // 2026-11-16: an ASP.NET site sends "Ladybird" in the UA to /Mobile/Index with a 302.
+    if (/^\/mobile(\/|$)/i.test(location.pathname)) return 'mobile url ' + location.pathname.slice(0, 40);
+    const m = [...document.styleSheets].map(s => s.href || '').find(h => /main\.mobile-|\.mobile_[0-9a-f]{8}/.test(h));
+    return m ? 'mobile css ' + m.slice(-60) : false;

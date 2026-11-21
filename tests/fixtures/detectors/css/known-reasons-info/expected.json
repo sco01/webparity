@@ -1,0 +1,12 @@
+{
+ "detector": "css",
+ "must": [
+  "css-rules-known"
+ ],
+ "must_not": [
+  "css-rules"
+ ],
+ "categories": {
+  "css-rules-known": "info"
+ }
+}

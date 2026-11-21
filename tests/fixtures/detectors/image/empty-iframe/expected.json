@@ -1,0 +1,7 @@
+{
+ "detector": "image",
+ "must": [
+  "empty-iframe"
+ ],
+ "must_not": []
+}

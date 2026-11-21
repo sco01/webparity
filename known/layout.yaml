@@ -1,0 +1,812 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# Known bug patterns in layout: block, inline, float, flex, table and positioned layout, images and missing content.
+
+- id: comment-after-html-css-table
+  issue: "#14116"
+  fixed: "8ffb819f5c4"
+  text: "a comment after </html> and a CSS table (WP Super Cache, LiteSpeed Cache)"
+  prefix: ["layout:", "image-differs", "zero-size-text", "crash:formatting_context.rs", "mobile-layout:"]
+  js: |
+    let k = false; for (let n = document.documentElement.nextSibling; n; n = n.nextSibling) if (n.nodeType === 8) k = true;
+    if (!k) return false;
+    return Array.from(document.querySelectorAll('body *')).slice(0, 6000).some(e => /^(table|inline-table|table-row|table-cell|table-row-group)$/.test(getComputedStyle(e).display)
+      && !/^(TABLE|TR|TD|TH|TBODY|THEAD|TFOOT|CAPTION|COLGROUP|COL)$/.test(e.tagName));
+
+# Runs in Ladybird because Chromium computes position: absolute for a modal dialog.
+- id: modal-dialog-relative-or-static-in-top-layer
+  issue: "#14114"
+  fixed: "9298770aa41"
+  text: "a modal dialog with position relative/static in the top layer"
+  prefix: ["layout:", "image-differs", "cookie-banner", "less-content"]
+  run_in: ladybird
+  js: |
+    const roots = [document]; for (const e of document.querySelectorAll('*')) if (e.shadowRoot) roots.push(e.shadowRoot);
+    for (const r of roots) for (const d of r.querySelectorAll('dialog')) { try { if (d.matches(':modal')) { const p = getComputedStyle(d).position;
+      if (p !== 'absolute' && p !== 'fixed') return true; } } catch (e) {} }
+    return false;
+
+# 2026-11-14: a floating tbody/thead/tfoot makes the whole table's content disappear in Ladybird (a site's login page).
+# Runs in the reference browser: a visible row group with float.
+- id: floating-tbody-hides-table-content
+  issue: "#14678"
+  text: "a floating <tbody> → the table's content is not painted"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "zero-size-text", "overflow"]
+  js: |
+    for (const e of document.querySelectorAll('tbody, thead, tfoot')) {
+      if (getComputedStyle(e).float === 'none') continue;
+      const r = e.getBoundingClientRect(); if (r.width > 0 && r.height > 0) return 'floating ' + e.tagName.toLowerCase();
+    }
+    return false;
+
+# 2026-11-14: clear gives no clearance past a float whose parent ends with a clearfix, when a negative margin-top pulls the
+# clearing block up beside the float (a site: the cards). Runs in the reference browser: a block with clear and a negative
+# margin-top whose previous sibling has a clearfix ::after and a floating child.
+- id: clear-negative-margin-after-clearfix-parent
+  issue: "#14679"
+  fixed: "eee664d088b"
+  text: "clear without clearance past a float in a clearfix parent with a negative margin-top"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "overflow"]
+  js: |
+    for (const e of document.querySelectorAll('body *')) {
+      const s = getComputedStyle(e);
+      if (s.clear === 'none' || !(parseFloat(s.marginTop) < 0) || s.float !== 'none') continue;
+      let f = e.previousElementSibling; while (f && /absolute|fixed/.test(getComputedStyle(f).position)) f = f.previousElementSibling;
+      if (!f) continue;
+      const a = getComputedStyle(f, '::after');
+      if (a.content === 'none' || a.clear === 'none') continue;
+      if (![...f.children].some(c => getComputedStyle(c).float !== 'none' && c.getBoundingClientRect().height > 0)) continue;
+      if (e.getBoundingClientRect().height > 0) return 'clear with negative margin after clearfix ' + (e.classList[0] || e.tagName.toLowerCase());
+    }
+    return false;
+
+# 2026-11-14: an image without a natural size (an SVG with only a viewBox) that is limited by max-height keeps its full
+# width in Ladybird (a site's payment logos). Runs in Ladybird (the reference browser cannot reliably tell a viewBox-only
+# SVG from an SVG with its own size – one site gave a false match): an SVG image limited by max-height that fills the
+# parent's whole width, or (2026-11-15) is wider than max-height × the aspect ratio.
+- id: svg-viewbox-image-max-height-keeps-width
+  issue: "#14681"
+  text: "an SVG image (viewBox only) with max-height keeps its full width"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "overflow"]
+  run_in: ladybird
+  js: |
+    for (const i of document.images) {
+      const src = i.currentSrc || i.src || '';
+      if (!/\.svg(\?|#|$)|^data:image\/svg/i.test(src)) continue;
+      const s = getComputedStyle(i), mh = parseFloat(s.maxHeight); if (!(mh > 0)) continue;
+      const r = i.getBoundingClientRect(); if (!(r.width > 0) || Math.abs(r.height - mh) > 1) continue;
+      const p = i.parentElement; if (!p) continue;
+      const ps = getComputedStyle(p), pin = p.getBoundingClientRect().width - parseFloat(ps.paddingLeft) - parseFloat(ps.paddingRight);
+      if (r.width >= pin * 0.95 && r.width > r.height * 4) return 'svg max-height ' + Math.round(r.width) + '×' + Math.round(r.height) + ' (full width)';
+      // 2026-11-15: the width is limited by something other than the parent (max-width, the default width 300, a float) –
+      // compare with max-height × the aspect ratio (several sites, Sitevision logos)
+      if (i.naturalWidth > 0 && i.naturalHeight > 0 && r.width > mh * i.naturalWidth / i.naturalHeight + 3)
+        return 'svg max-height ' + Math.round(r.width) + '×' + Math.round(r.height) + ' (expected ' + Math.round(mh * i.naturalWidth / i.naturalHeight) + ' wide)';
+    }
+    return false;
+
+# 2026-11-15: an <html> element that is not the document root makes Ladybird paint the body background over the whole
+# page – a car maker's consent dialog (epaas-consent-drawer-shell, a shadow root with its own html/body) left several of
+# its sites white. Runs in the reference browser: an html element besides the root, also in open shadow roots.
+- id: html-element-besides-root-paints-body-background
+  issue: "#14752"
+  fixed: "d3c7355ce7d"
+  text: "an html element besides the root → the body background over the page (a car maker's consent dialog)"
+  prefix: ["image-differs", "empty-root", "empty-iframe", "empty-canvas", "blank-page", "less-content", "cookie-banner",
+           "layout:", "mobile-layout:"]
+  js: |
+    const search = (root, d) => { for (const e of root.querySelectorAll('*')) {
+      if (e.tagName === 'HTML' && e !== document.documentElement) return (d ? 'shadow ' : '') + 'html.' + String(e.className).split(' ')[0] + ' in ' + (e.getRootNode().host ? e.getRootNode().host.tagName.toLowerCase() : 'the document');
+      if (e.shadowRoot && d < 4) { const t = search(e.shadowRoot, d + 1); if (t) return t; } } return false; };
+    return search(document, 0);
+
+# 2026-11-15: order is ignored in a row-reverse/column-reverse flex in Ladybird (the sorting is reversed and the layout
+# reverses again): the "Mitt konto" template used by public transport companies shows the login box on the left. Runs in
+# the reference browser: a visible reversed flex container whose items have different order.
+- id: order-ignored-in-reverse-flex
+  issue: "#14749"
+  fixed: "9e9b86542cd"
+  text: "order is ignored in row-reverse/column-reverse (the \"Mitt konto\" template, several sites)"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "overflow"]
+  js: |
+    for (const e of Array.from(document.querySelectorAll('body *')).slice(0, 8000)) {
+      const s = getComputedStyle(e);
+      if (!/flex/.test(s.display) || !/reverse/.test(s.flexDirection)) continue;
+      const r = e.getBoundingClientRect(); if (r.width < 20 || r.height < 10) continue;
+      const orders = new Set();
+      for (const c of e.children) { const cs = getComputedStyle(c); if (cs.position === 'absolute' || cs.position === 'fixed' || cs.display === 'none') continue;
+        const cr = c.getBoundingClientRect(); if (cr.width > 0 && cr.height > 0) orders.add(cs.order); }
+      if (orders.size > 1) return e.tagName.toLowerCase() + '.' + String(e.className).split(' ')[0].slice(0, 30) + ' ' + s.flexDirection + ' order ' + [...orders].join('/');
+    }
+    return false;
+
+# 2026-11-15: an image as a flex item with a percentage max-width gets automatic minimum width 0 in Ladybird (per
+# css-sizing-3 §5.2.1, but not in Chromium/Firefox) and is shrunk: on two sites a badge 62×112 against 112×112 and an image
+# 350 against 700. Runs in the reference browser: an img in a row flex with a percentage max-width that becomes narrower
+# when min-width is temporarily set to 0 (imitating Ladybird's behaviour).
+- id: flex-item-img-percent-max-width-shrinks
+  issue: "#14740"
+  fixed: "6beff376383"
+  text: "a flex item img with a percentage max-width is shrunk below its size"
+  regex: '^(mobile-)?layout:(width|height|position|missing):[\w-]*flex>img'
+  js: |
+    for (const i of Array.from(document.images).slice(0, 3000)) {
+      const p = i.parentElement; if (!p) continue;
+      const ps = getComputedStyle(p), s = getComputedStyle(i);
+      if (!/flex/.test(ps.display) || /column/.test(ps.flexDirection) || !/%/.test(s.maxWidth)) continue;
+      const before = i.getBoundingClientRect(); if (before.width < 8 || before.height < 8) continue;
+      // imitate Ladybird's behaviour: automatic minimum width 0 – if the image gets narrower, Ladybird would shrink it
+      const old = i.style.getPropertyValue('min-width'), prio = i.style.getPropertyPriority('min-width');
+      i.style.setProperty('min-width', '0px', 'important');
+      const after = i.getBoundingClientRect().width;
+      if (old) i.style.setProperty('min-width', old, prio); else i.style.removeProperty('min-width');
+      if (after < before.width - 2) return 'img ' + Math.round(before.width) + 'x' + Math.round(before.height) + ' → ' + Math.round(after) + ' with min-width 0 (max-width ' + s.maxWidth + ')';
+    }
+    return false;
+
+# 2026-11-11: three abspos bugs (filed by us). #14334 and #14335 run in the reference browser (structure; #14335 also
+# ::before/::after), #14336 in the reference browser via the style rules. The tests run at desktop width, so they do not
+# require anything to stick out.
+- id: abspos-input-left-right-width-auto-not-stretched
+  issue: "#14334"
+  fixed: "5f19d6f289"
+  text: "an absolute <input>/<textarea> with left and right and width: auto is not stretched"
+  prefix: ["mobile-overflow", "overflow", "mobile-layout:", "layout:"]
+  js: |
+    // In the reference browser: the field fills the space between left and right, but a static copy in the same place is
+    // as wide as the field only if the width is specified – otherwise it is width: auto that stretches (what Ladybird does not do).
+    for (const e of document.querySelectorAll('input, textarea')) {
+      const cs = getComputedStyle(e); if (cs.position !== 'absolute') continue;
+      if (e.type && /^(hidden|checkbox|radio|image|range|color|file)$/.test(e.type)) continue;
+      const cb = e.offsetParent; if (!cb || !e.parentElement) continue;
+      const r = e.getBoundingClientRect(), c = cb.getBoundingClientRect(); if (r.width < 20) continue;
+      const left = c.left + cb.clientLeft + parseFloat(cs.left) + parseFloat(cs.marginLeft);
+      const right = c.left + cb.clientLeft + cb.clientWidth - parseFloat(cs.right) - parseFloat(cs.marginRight);
+      if (Math.abs(r.left - left) > 1 || Math.abs(r.right - right) > 1) continue;
+      const k = e.cloneNode(false); k.removeAttribute('id'); k.style.position = 'static'; k.style.left = k.style.right = 'auto';
+      e.parentElement.insertBefore(k, e); const w = k.getBoundingClientRect().width; k.remove();
+      if (Math.abs(w - r.width) > 4) return e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + ' ' + Math.round(r.width) + ' px (natural ' + Math.round(w) + ')';
+    }
+    return false;
+
+- id: abspos-inline-containing-block-not-clipped
+  issue: "#14335"
+  fixed: "d880f4c326"
+  text: "an absolute box with a positioned inline as its containing block is not clipped by overflow: hidden"
+  prefix: ["mobile-overflow", "overflow", "mobile-layout:", "layout:"]
+  js: |
+    const pos = e => e && getComputedStyle(e).position !== 'static';
+    const probe = (owner, cs, rect) => {   // owner: the element whose containing block is searched for (for ::after: the element itself counts)
+      let cb = owner; while (cb && cb !== document.body && !pos(cb)) cb = cb.parentElement;
+      if (!cb || cb === document.body || getComputedStyle(cb).display !== 'inline') return false;
+      for (let k = cb.parentElement; k && k !== document.body; k = k.parentElement) {
+        const kc = getComputedStyle(k);
+        if (/hidden|clip/.test(kc.overflowX)) {
+          let p = k.parentElement; while (p && p !== document.body && !pos(p)) p = p.parentElement;
+          if (!p || p === document.body) return false;
+          const kr = k.getBoundingClientRect(); return rect.right - kr.right > 1 || kr.left - rect.left > 1;
+        }
+        if (pos(k)) return false;
+      }
+      return false; };
+    const all = Array.from(document.querySelectorAll('body *')).slice(0, 6000);
+    for (const e of all) {
+      const cs = getComputedStyle(e);
+      if (cs.position === 'absolute' && probe(e.parentElement, cs, e.getBoundingClientRect())) return e.tagName.toLowerCase() + '.' + e.className;
+      for (const ps of ['::before', '::after']) {
+        const p = getComputedStyle(e, ps); if (p.content === 'none' || p.position !== 'absolute') continue;
+        let cb = e; while (cb && !pos(cb)) cb = cb.parentElement; if (!cb) continue;
+        const cr = cb.getBoundingClientRect(), v = cr.left + (parseFloat(p.left) || 0);
+        if (probe(e, p, {left: v, right: v + (parseFloat(p.width) || 0)})) return e.tagName.toLowerCase() + '.' + e.className + ps;
+      }
+    }
+    return false;
+
+- id: abspos-top-bottom-width-auto-image-natural-width
+  issue: "#14336"
+  fixed: "5f19d6f289"
+  text: "an absolute box with top/bottom and width: auto gets the image's natural width when the image has height: 100%"
+  prefix: ["mobile-overflow", "overflow", "mobile-layout:", "layout:"]
+  js: |
+    // Reads the style rules, also in media queries that do not apply now (the test runs at desktop width, the bug often only
+    // shows in the mobile view): an absolute box with top and bottom, left or right auto and some rule with width: auto
+    // (or no width rule), with an image inside that has a percentage height.
+    const rules = []; const walk = rs => { for (const r of rs) { if (r.selectorText) rules.push(r); try { if (r.cssRules) walk(r.cssRules); } catch (e) {} } };
+    for (const ss of document.styleSheets) { try { walk(ss.cssRules); } catch (e) {} }
+    const values = (e, prop) => { const v = []; if (e.style.getPropertyValue(prop)) v.push(e.style.getPropertyValue(prop));
+      for (const r of rules) { const x = r.style.getPropertyValue(prop); if (x) { try { if (e.matches(r.selectorText)) v.push(x.trim()); } catch (y) {} } } return v; };
+    let n = 0;
+    for (const img of document.images) {
+      if (++n > 300) break;
+      if (!values(img, 'height').some(v => /%$/.test(v))) continue;
+      let a = img.parentElement; while (a && a !== document.body && getComputedStyle(a).position === 'static') a = a.parentElement;
+      if (!a || a === document.body || getComputedStyle(a).position !== 'absolute') continue;
+      const top = values(a, 'top'), bottom = values(a, 'bottom'), w = values(a, 'width');
+      if (!top.some(v => v !== 'auto') || !bottom.some(v => v !== 'auto')) continue;
+      const left = values(a, 'left'), right = values(a, 'right');   // left and right set → the width comes from them, not shrink-to-fit
+      if (left.some(v => v !== 'auto') && right.some(v => v !== 'auto') && !left.includes('auto') && !right.includes('auto')) continue;
+      if (!w.length || w.includes('auto')) return (a.className || a.tagName) + ' > … > img (height ' + values(img, 'height')[0] + ')';
+    }
+    return false;
+
+# 2026-11-12: in a -webkit-line-clamp box an inline child's offsetHeight/getClientRects end at the clamp, so pages that
+# compare the child's height with the box's (DSpace 7 truncatable) never show "Show more" (a site). The check runs in
+# Ladybird: a clamped box that overflows (scrollHeight is right) although none of its inline children is taller than the
+# box. In the reference browser it could not be told apart from a site where the text wraps into fewer lines in Ladybird
+# and the box does not overflow.
+- id: line-clamp-inline-child-height-ends-at-clamp
+  issue: "#14453"
+  fixed: "09187f62df"
+  text: "an inline child in a -webkit-line-clamp box: height and rects end at the clamp (DSpace 7 \"Show more\")"
+  regex: '^(mobile-)?layout:missing:block>button$'
+  run_in: ladybird
+  js: |
+    for (const e of Array.from(document.querySelectorAll('body *')).slice(0, 8000)) {
+      const c = getComputedStyle(e);
+      if (!/^\d+$/.test(c.webkitLineClamp) || e.scrollHeight <= e.clientHeight + 4 || !e.children.length) continue;
+      const children = Array.from(e.children);
+      const inChildren = children.reduce((n, b) => n + b.textContent.trim().length, 0);   // the text should be in the children, not directly in the box
+      if (inChildren >= 0.9 * e.textContent.trim().length && children.every(b => getComputedStyle(b).display === 'inline' && b.offsetHeight <= e.clientHeight + 4))
+        return e.tagName.toLowerCase() + (e.className ? '.' + String(e.className).split(' ')[0] : '') + ' ' + e.clientHeight + '/' + e.scrollHeight;
+    }
+    return false;
+
+# 2026-11-12: inline elements entirely after the clamp in a line-clamp box get width 0 (the same mechanism as #14453; a
+# site). Runs in Ladybird.
+- id: line-clamp-inline-after-clamp-zero-width
+  issue: "#14453"
+  fixed: "09187f62df"
+  text: "inline elements after the clamp in a -webkit-line-clamp box get width 0"
+  regex: '^(mobile-)?layout:missing:block>inline(-block)?$'
+  run_in: ladybird
+  mobile: true
+  js: |
+    for (const e of Array.from(document.querySelectorAll('body *')).slice(0, 8000)) {
+      if (getComputedStyle(e).display !== 'inline') continue;
+      const r = e.getBoundingClientRect(); if (r.width !== 0 || !r.height || !(e.textContent || '').trim()) continue;
+      for (let a = e.parentElement, d = 0; a && d < 8; a = a.parentElement, d++)
+        if (/^\d+$/.test(getComputedStyle(a).webkitLineClamp) && a.scrollHeight > a.clientHeight + 4) return a.tagName.toLowerCase() + '.' + String(a.className).split(' ')[0];
+    }
+    return false;
+
+# 2026-11-14: an inline box that only contains <br> does not count its line-height in the line's height (Chromium and
+# Firefox do; 2d2a0886e6 fixed inline boxes with only atomic children). Common spacing from WordPress editors:
+# <p><span style="font-size: …"><br></span></p> (on a site an h3 19 against 56). Runs in Ladybird: a visible <br> whose
+# parent is inline and has no other content, whose line-height is larger than the block's, and whose box only has the
+# block's height.
+- id: inline-box-with-only-br-ignores-line-height
+  issue: "#14641"
+  fixed: "88bca845328"
+  text: "an inline box with only <br> does not count its line-height"
+  prefix: ["layout:", "mobile-layout:", "less-content", "shorter-page", "image-differs"]
+  run_in: ladybird
+  mobile: true
+  js: |
+    const lh = s => s.lineHeight === 'normal' ? 1.2 * parseFloat(s.fontSize) : parseFloat(s.lineHeight);
+    for (const br of document.querySelectorAll('body br')) {
+      const p = br.parentElement; if (!p) continue;
+      const ps = getComputedStyle(p); if (ps.display !== 'inline') continue;
+      if ([...p.childNodes].some(n => n.nodeType === 1 ? n.tagName !== 'BR' : (n.nodeType === 3 && n.textContent.trim()))) continue;
+      let b = p.parentElement; while (b && getComputedStyle(b).display.startsWith('inline')) b = b.parentElement;
+      if (!b) continue;
+      const bs = getComputedStyle(b), br_ = br.getBoundingClientRect(), bb = b.getBoundingClientRect();
+      if (bb.width < 1 || bb.height < 1 || bs.visibility === 'hidden') continue;
+      if (lh(ps) > lh(bs) + 4 && br_.height < lh(ps) - 4)
+        return b.tagName.toLowerCase() + '>' + p.tagName.toLowerCase() + ' lh=' + lh(ps).toFixed(0) + ' block=' + lh(bs).toFixed(0) + ' br=' + br_.height.toFixed(0);
+    }
+    return false;
+
+# 2026-11-14: Ladybird forces line-height: normal on every select (StyleEngineInput.cpp ForceLineHeightNormal), also with
+# appearance: none where Chromium and Firefox use the page's line-height (on two sites a CF7 select 56 against 63 px). Runs
+# in the reference browser: a visible select with appearance: none whose content height is its line-height and larger
+# than normal.
+- id: select-appearance-none-line-height-ignored
+  issue: "#14612"
+  fixed: "d3193396835"
+  text: "line-height is ignored on a select with appearance: none"
+  prefix: ["layout:", "mobile-layout:", "less-content", "shorter-page", "image-differs"]
+  js: |
+    for (const e of document.querySelectorAll('select')) {
+      const s = getComputedStyle(e);
+      if (s.appearance !== 'none' || s.lineHeight === 'normal') continue;
+      const r = e.getBoundingClientRect(); if (r.width < 1 || r.height < 1) continue;
+      const lh = parseFloat(s.lineHeight);
+      const inner = r.height - ['paddingTop', 'paddingBottom', 'borderTopWidth', 'borderBottomWidth'].reduce((a, k) => a + parseFloat(s[k]), 0);
+      if (Math.abs(inner - lh) > 1.5) continue;
+      const probe = document.createElement('span'); probe.textContent = 'Xg';
+      probe.style.cssText = `font:${s.font};line-height:normal;position:absolute;visibility:hidden`;
+      document.body.appendChild(probe); const normal = probe.getBoundingClientRect().height; probe.remove();
+      if (lh > normal + 2) return 'select lh=' + s.lineHeight + ' normal≈' + normal.toFixed(1);
+    }
+    return false;
+
+# 2026-11-13: an atomic inline whose border box fits on the line but whose positive right margin does not is not wrapped
+# to the next line (inline_formatting_context.rs only counts negative margins). Sponsor logos and social icons on several
+# sites. Runs in Ladybird: an inline-block/-flex/-grid/-table, not first on the line, whose right margin goes outside the
+# parent block's content box while the border box fits.
+- id: inline-block-margin-not-fitting-not-wrapped
+  issue: "#14572"
+  fixed: "56aba0318a5"
+  text: "an inline-block whose margin does not fit is not wrapped to the next line (sponsor logos, social icons)"
+  prefix: ["layout:", "mobile-layout:", "less-content", "shorter-page", "image-differs"]
+  run_in: ladybird
+  mobile: true
+  js: |
+    for (const e of document.querySelectorAll('body *')) {
+      const s = getComputedStyle(e);
+      if (!/^inline-(block|flex|grid|table)$/.test(s.display)) continue;
+      // 2026-11-13 (a site): also a positive left margin – then the box itself ends up outside the line
+      const mr = Math.max(0, parseFloat(s.marginRight)), ml = Math.max(0, parseFloat(s.marginLeft));
+      if (!(mr + ml > 0.5)) continue;
+      let p = e.parentElement; while (p && /^inline/.test(getComputedStyle(p).display)) p = p.parentElement;
+      if (!p) continue;
+      const ps = getComputedStyle(p); if (/nowrap|pre$/.test(ps.whiteSpace) || ps.textWrapMode === 'nowrap') continue;
+      const pr = p.getBoundingClientRect(), r = e.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) continue;
+      const right = pr.right - parseFloat(ps.paddingRight) - parseFloat(ps.borderRightWidth);
+      const left = pr.left + parseFloat(ps.paddingLeft) + parseFloat(ps.borderLeftWidth);
+      if (r.right + mr > right + 0.5 && r.width + ml + mr <= right - left + 0.5 && r.left - ml > left + 1)
+        return 'margin outside the line: ' + e.tagName.toLowerCase() + '.' + (e.classList[0] || '') + ' ml=' + ml + ' mr=' + mr;
+    }
+    return false;
+
+# 2026-11-13: a float in a multi-column block – in the container's own lines everything becomes one column (a site's list
+# of municipalities), floating children are balanced wrongly (another site). Runs in the reference browser: a multi-column
+# block with a floating direct child (a float inside a child block works in Ladybird and does not count).
+- id: float-in-multicol-block
+  issue: "#14545"
+  fixed: "241e3b9e99c"
+  text: "a float in a multi-column block: one column or wrong balance"
+  prefix: ["layout:", "mobile-layout:", "less-content", "shorter-page", "image-differs"]
+  js: |
+    for (const e of document.querySelectorAll('body *')) {
+      const s = getComputedStyle(e);
+      if (!((s.columnCount !== 'auto' && s.columnCount !== '1') || s.columnWidth !== 'auto')) continue;
+      if (e.getBoundingClientRect().height < 20) continue;
+      for (const c of e.children)
+        if (getComputedStyle(c).cssFloat !== 'none' && c.getBoundingClientRect().height > 0)
+          return 'multicol with float: ' + e.tagName.toLowerCase() + ' cc=' + s.columnCount;
+    }
+    return false;
+
+# 2026-11-13: a table row with a specified height around a table-layout: fixed table with a percentage width gets the
+# content's height at 1 000 000 px width (the Uncode theme: the footer is a table-row with height 1px, media in
+# .tmb > .t-inside). Runs in Ladybird: a table-row over 10 000 px that contains a fixed table less than a fifth as high.
+- id: table-row-height-from-million-px-fixed-table
+  issue: "#14524"
+  fixed: "e912427ba0"
+  text: "a table row with a height takes its height from a 1 000 000 px wide layout of a fixed percentage table (the Uncode theme)"
+  prefix: ["layout:", "mobile-layout:", "less-content", "shorter-page", "image-differs"]
+  run_in: ladybird
+  js: |
+    for (const r of document.querySelectorAll('*')) {
+      if (getComputedStyle(r).display !== 'table-row') continue;
+      const h = r.getBoundingClientRect().height;
+      if (h < 10000) continue;
+      for (const t of r.querySelectorAll('*')) {
+        const ts = getComputedStyle(t);
+        if (ts.display === 'table' && ts.tableLayout === 'fixed' && t.getBoundingClientRect().height < h / 5)
+          return 'table row ' + Math.round(h) + ' px';
+      }
+    }
+    return false;
+
+# 2026-11-14: a row or cell with a height gets the content's height at max-content width (on a site: td height 150px, img
+# width=1200 max-width 100% → the row 658 against 180). Comment on #14524 posted 2026-11-14. Runs in Ladybird: a table row
+# with a height on the row or a cell (style or attribute) that is at least 100 px and more than twice as high as the
+# cells' content.
+- id: table-row-height-from-max-content-width
+  issue: "#14524"
+  fixed: "e912427ba0"
+  text: "a row/cell with a height takes the content's height at max-content width (comment on #14524)"
+  prefix: ["layout:", "mobile-layout:", "less-content", "shorter-page", "image-differs"]
+  run_in: ladybird
+  js: |
+    for (const tr of document.querySelectorAll('tr')) {
+      const rh = tr.getBoundingClientRect().height; if (rh < 100) continue;
+      const cells = [...tr.cells];
+      if (!(tr.style.height || tr.getAttribute('height') || cells.some(c => c.style.height || c.getAttribute('height')))) continue;
+      let inner = 0;
+      for (const c of cells) for (const k of c.querySelectorAll('img, svg, video, iframe, p, h1, h2, h3, h4, div, span, a')) {
+        const r = k.getBoundingClientRect(); if (r.height > inner) inner = r.height;
+      }
+      const ch = Math.max(...cells.map(c => parseFloat(c.style.height) || parseFloat(c.getAttribute('height')) || 0), parseFloat(tr.style.height) || 0);
+      if (inner > 0 && rh > 2 * Math.max(inner, ch) + 40) return 'row ' + Math.round(rh) + ' content ' + Math.round(inner);
+    }
+    return false;
+
+# 2026-11-13 (a comment on #14021, not our issue): a positioned inline element around an image gets the image's height,
+# and absolutely positioned children with height: 100 % follow (the Enfold theme's hover overlay span.image-overlay).
+# Runs in Ladybird.
+- id: enfold-image-overlay-inline-parent-height
+  issue: "#14021"
+  text: "an inline parent gets the image's height; Enfold overlays (span.image-overlay) in image links"
+  regex: '^(mobile-)?layout:height:block>block$'
+  run_in: ladybird
+  js: |
+    for (const o of document.querySelectorAll('a > span.image-overlay > span.image-overlay-inside')) {
+      const a = o.closest('a'), img = a.querySelector('img');
+      if (!img || getComputedStyle(a).display !== 'inline') continue;
+      const ih = img.getBoundingClientRect().height;
+      if (ih > 30 && a.getBoundingClientRect().height >= ih - 1) return 'enfold overlay';
+    }
+    return false;
+
+# 2026-11-14: in a column flex a stretched element with max-width and a margin gets the height of its content at
+# (max-width − margins) width in Ladybird (a site's Salient teasers 783 against 331). Runs in the reference browser: a
+# visible element with text in a column flex, stretched (align-self normal/stretch), limited by max-width, whose max-width
+# minus horizontal margins is less than half the element's width (two sites with small margins showed no difference).
+- id: column-flex-stretched-max-width-margin-height
+  issue: "#14640"
+  fixed: "8e5fe93cd38"
+  text: "column flex: a stretched element with max-width + margin gets its height at a narrower width"
+  prefix: ["layout:", "mobile-layout:", "less-content", "shorter-page", "image-differs"]
+  js: |
+    for (const e of document.querySelectorAll('body *')) {
+      const p = e.parentElement; if (!p) continue;
+      const ps = getComputedStyle(p); if (!/flex/.test(ps.display) || !/column/.test(ps.flexDirection)) continue;
+      const s = getComputedStyle(e); if (s.maxWidth === 'none' || !/normal|stretch|auto/.test(s.alignSelf)) continue;
+      if (/normal|stretch/.test(ps.alignItems) === false && s.alignSelf === 'auto') continue;
+      const r = e.getBoundingClientRect(); if (r.width < 50 || r.height < 10 || !(e.textContent.trim() || e.querySelector('img, video, svg'))) continue;   // one site: only an image
+      // 2026-11-14: not only margins – padding and border are also subtracted once too often, with both box-sizing values
+      // (a site: Elementor widget border-box, max-width 100%, padding-right 45%).
+      const f = x => parseFloat(s[x]) || 0;
+      const pb = f('paddingLeft') + f('paddingRight') + f('borderLeftWidth') + f('borderRightWidth');
+      const m = f('marginLeft') + f('marginRight');
+      const pin = p.getBoundingClientRect().width - (parseFloat(ps.paddingLeft) || 0) - (parseFloat(ps.paddingRight) || 0) - (parseFloat(ps.borderLeftWidth) || 0) - (parseFloat(ps.borderRightWidth) || 0);
+      const mw = /%$/.test(s.maxWidth) ? parseFloat(s.maxWidth) / 100 * pin : parseFloat(s.maxWidth); if (!(mw > 0)) continue;   // max-width: 100 % (Elementor)
+      const bb = s.boxSizing === 'border-box', maxInner = bb ? mw - pb : mw;     // largest content width
+      if (Math.abs(r.width - (bb ? mw : mw + pb)) > 2) continue;                 // limited by max-width
+      const edges = m + pb;
+      if (edges > 0 && maxInner - edges < maxInner * 0.5) return 'column flex ' + e.tagName.toLowerCase() + '.' + (e.classList[0] || '') + ' mw=' + Math.round(mw) + ' edges=' + Math.round(edges);
+    }
+    return false;
+
+# 2026-11-14: margins collapse in Ladybird through a block with height: 0 that has a line box – the classic clearfix
+# ::after { content: "."; display: block; height: 0 } – so the last child's bottom margin ends up outside the parent (on a
+# site rows 1 against 31). Runs in Ladybird: a parent with such an ::after whose last element child has a bottom margin
+# that does not fit inside the parent's bottom edge.
+- id: margin-collapses-through-clearfix-after-with-dot
+  issue: "#14638"
+  fixed: "56b0e9e56ab"
+  text: "a margin collapses through a clearfix ::after with content \".\" and height 0"
+  prefix: ["layout:", "mobile-layout:", "less-content", "shorter-page", "image-differs"]
+  run_in: ladybird
+  js: |
+    for (const e of document.querySelectorAll('body *')) {
+      const a = getComputedStyle(e, '::after');
+      if (a.display !== 'block' || !/^["'].+["']$/.test(a.content) || parseFloat(a.height) !== 0) continue;
+      const s = getComputedStyle(e);
+      if (s.display !== 'block' || /hidden|clip|auto|scroll/.test(s.overflow) || parseFloat(s.paddingBottom) || parseFloat(s.borderBottomWidth)) continue;
+      const last = [...e.children].filter(c => { const cs = getComputedStyle(c); return cs.display !== 'none' && cs.position !== 'absolute' && cs.position !== 'fixed' && cs.cssFloat === 'none'; }).pop();
+      if (!last) continue;
+      const mb = parseFloat(getComputedStyle(last).marginBottom); if (!(mb > 4)) continue;
+      const r = e.getBoundingClientRect(), sr = last.getBoundingClientRect();
+      if (r.width > 0 && r.bottom - sr.bottom < mb - 2) return e.tagName.toLowerCase() + '.' + (e.classList[0] || '') + ' mb=' + mb + ' inside=' + Math.round(r.bottom - sr.bottom);
+    }
+    return false;
+
+# 2026-11-14: a display: table with height: 100% in a table cell is not stretched to the row's height in Ladybird
+# (Chromium and Firefox do it when the outer table has a percentage height) – on a site ContentBox boxes 200 against 401,
+# the image fills half the box. Runs in the reference browser: a visible table whose parent is a table cell, that is as
+# high as the cell (at least 100 px) and more than 1.5 times as high as its own in-flow content.
+- id: table-height-100-percent-in-cell-not-stretched
+  issue: "#14637"
+  fixed: "e912427ba0"
+  text: "a display: table with height 100% in a cell is not stretched"
+  prefix: ["layout:", "mobile-layout:", "less-content", "shorter-page", "image-differs"]
+  js: |
+    for (const e of document.querySelectorAll('body *')) {
+      const s = getComputedStyle(e); if (s.display !== 'table') continue;
+      const p = e.parentElement; if (!p || getComputedStyle(p).display !== 'table-cell') continue;
+      const r = e.getBoundingClientRect(), pr = p.getBoundingClientRect();
+      if (r.height < 100 || r.width < 1 || Math.abs(r.height - pr.height) > 2) continue;
+      let inner = parseFloat(s.minHeight) || 0;
+      for (const c of e.children) { const cs = getComputedStyle(c); if (cs.position === 'absolute' || cs.position === 'fixed' || cs.display === 'none') continue;
+        const cr = c.getBoundingClientRect(); for (const g of c.children) { const gr = g.getBoundingClientRect(); if (gr.height > inner) inner = gr.height; }
+        if (cs.display !== 'table-cell' && cs.display !== 'table-row' && cr.height > inner) inner = cr.height; }
+      if (r.height > 1.5 * inner + 20) return 'table in cell ' + Math.round(r.height) + ' content ' + Math.round(inner) + ' ' + (e.classList[0] || '');
+    }
+    return false;
+
+# 2026-11-14 (#14635): a box with aspect-ratio and width: fit-content/min-content/max-content fills the available width
+# in Ladybird (on a site package cards 969 against 383). Runs in the reference browser: a rule (or style attribute) with
+# aspect-ratio and an intrinsic width keyword whose selector matches a visible element that is narrower than its parent.
+- id: aspect-ratio-intrinsic-width-keyword-fills-width
+  issue: "#14635"
+  fixed: "edb1796b057"
+  text: "aspect-ratio + width: fit-content/min-/max-content fills the width"
+  prefix: ["layout:", "mobile-layout:", "less-content", "shorter-page", "image-differs", "overflow"]
+  js: |
+    const narrow = e => { const r = e.getBoundingClientRect(), p = e.parentElement && e.parentElement.getBoundingClientRect();
+                          return r.width > 0 && r.height > 0 && p && r.width < p.width - 20; };
+    const matches = (st, sel) => {
+      if (!st || !st.aspectRatio || st.aspectRatio === 'auto') return false;
+      if (!/(fit|min|max)-content/.test(st.width || '') && !/(fit|min|max)-content/.test(st.inlineSize || '')) return false;
+      let el = []; try { el = sel ? [...document.querySelectorAll(sel)] : []; } catch (e) { return false; }
+      return el.some(narrow);
+    };
+    const walk = rules => { for (const r of rules) {
+        if (r.cssRules && !r.selectorText) { const s = walk(r.cssRules); if (s) return s; continue; }
+        if (r.selectorText && matches(r.style, r.selectorText)) return 'rule ' + r.selectorText.slice(0, 60);
+      } return false; };
+    for (const s of document.styleSheets) { let rr; try { rr = s.cssRules; } catch (e) { continue; } const answer = walk(rr); if (answer) return answer; }
+    for (const e of document.querySelectorAll('[style*="aspect-ratio"]'))
+      if (/(fit|min|max)-content/.test(e.style.width) && narrow(e)) return 'style ' + e.tagName.toLowerCase();
+    return false;
+
+# 2026-11-15: an absolutely positioned inline box after floats gets its static position at the container's edge in
+# Ladybird when a clearing element follows (clearfix ::after, clear div) – on a site the "back to top" button sat over the
+# heading in the footer. Runs in the reference browser: an abspos after a float, a clear after it, left edge at the
+# float's edge.
+- id: abspos-after-float-with-clear-static-position
+  issue: "#14804"
+  fixed: "408880490e7"
+  text: "abspos after a float + clear: static position at the edge"
+  prefix: ["layout:position", "mobile-layout:position"]
+  js: |
+    for (const e of document.querySelectorAll('body *')) {
+      const s = getComputedStyle(e); if (s.position !== 'absolute') continue;
+      const p = e.parentElement; if (!p) continue;
+      let fl = null; for (let x = e.previousElementSibling; x; x = x.previousElementSibling) { if (getComputedStyle(x).float !== 'none') { fl = x; break; } }
+      if (!fl) continue;
+      let clr = getComputedStyle(p, '::after').clear !== 'none' && getComputedStyle(p, '::after').content !== 'none';
+      for (let x = e.nextElementSibling; x && !clr; x = x.nextElementSibling) { const xs = getComputedStyle(x); if (xs.clear !== 'none' && xs.position !== 'absolute' && xs.position !== 'fixed') clr = true; }
+      if (!clr) continue;
+      const r = e.getBoundingClientRect(), f = fl.getBoundingClientRect();
+      if (r.width < 5 || r.height < 5) continue;
+      const ml = parseFloat(s.marginLeft) || 0, fr = f.right + (parseFloat(getComputedStyle(fl).marginRight) || 0);
+      if (Math.abs(r.left - ml - fr) < 2 && fr - p.getBoundingClientRect().left > 30) return 'abspos-after-float ' + e.tagName.toLowerCase() + '.' + (e.className + '').split(' ')[0].slice(0, 25) + ' x=' + Math.round(r.left);
+    }
+    return false;
+
+# 2026-11-15: in quirks mode a percentage height inside a flex item with a percentage height becomes 0 (or an old height)
+# in Ladybird (sizing_context.rs quirks_block: the parent's content_block_size without it being definite) – on a site in
+# the mobile view the article cards were too low, the text over the next card. Runs in Ladybird: quirks mode and a block
+# (overflow visible, static) in a flex/grid item whose in-flow children end more than 10 px below it.
+- id: quirks-percent-height-in-percent-flex-item
+  issue: "#14769"
+  fixed: "d95dab03c07"
+  text: "quirks: a percentage height in a flex item with a percentage height becomes 0"
+  prefix: ["mobile-layout:height", "layout:height"]
+  run_in: ladybird
+  mobile: true
+  js: |
+    if (document.compatMode !== 'BackCompat') return false;
+    for (const e of document.querySelectorAll('body *')) {
+      const p = e.parentElement, g = p && p.parentElement; if (!g) continue;
+      if (!/flex|grid/.test(getComputedStyle(g).display)) continue;
+      const s = getComputedStyle(e); if (!/^(block|flow-root|list-item)$/.test(s.display) || s.overflow !== 'visible' || s.position !== 'static') continue;
+      const r = e.getBoundingClientRect(); if (r.width < 50) continue;
+      let bot = r.top;
+      for (const c of e.children) { const cs = getComputedStyle(c); if (cs.position === 'absolute' || cs.position === 'fixed' || cs.display === 'none') continue; bot = Math.max(bot, c.getBoundingClientRect().bottom); }
+      if (bot - r.bottom > 10) return 'quirks-percent ' + e.tagName.toLowerCase() + '.' + (e.className + '').split(' ')[0].slice(0, 25) + ' h=' + Math.round(r.height) + ' content=' + Math.round(bot - r.top);
+    }
+    return false;
+
+# 2026-11-15: a table cell with a percentage height and vertical-align: middle/bottom does not center its content in
+# Ladybird (the second cell layout kept the resolved height, so stretch_cells_to_their_rows got no free space) – two
+# sites' TOPdesk login (body { display: table } > #background { display: table-cell; vertical-align: middle; height:
+# 100% }) had the box at the top; the Enfold theme's full-height sections likewise. Fixed by PR #14616 (48e5220b97e,
+# 2026-11-15, "Fixes #8336"). Runs in the reference browser: a visible table-cell with middle/bottom and a rule (or style)
+# with a percentage height that matches it.
+- id: percent-height-table-cell-vertical-align-not-centered
+  issue: "#8336"
+  fixed: "48e5220b97e"
+  text: "a table cell with a percentage height and vertical-align: middle is not centered (TOPdesk login)"
+  prefix: ["image-differs", "layout:position", "layout:height"]
+  js: |
+    const percent = e => /%/.test(e.style.height);
+    // the Enfold theme: the stylesheet is often on a CDN and cannot be read – its selector is listed here
+    const rules = ['.avia-section.av-minimum-height .container .content'];
+    const walk = rl => { for (const r of rl) { try {
+      if (r.cssRules && !r.selectorText) walk(r.cssRules);
+      else if (r.selectorText && /%/.test(r.style.height)) rules.push(r.selectorText);
+    } catch (x) {} } };
+    for (const s of document.styleSheets) { try { walk(s.cssRules); } catch (x) {} }
+    for (const e of document.querySelectorAll('body, body *')) {
+      const s = getComputedStyle(e);
+      if (s.display !== 'table-cell' || !/^(middle|bottom)$/.test(s.verticalAlign)) continue;
+      const r = e.getBoundingClientRect(); if (r.height < 100 || r.width < 50) continue;
+      if (percent(e) || rules.some(sel => { try { return e.matches(sel); } catch (x) { return false; } }))
+        return 'percent cell ' + e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + ' h=' + Math.round(r.height) + ' ' + s.verticalAlign;
+    }
+    return false;
+
+# 2026-11-16: an inline element with position: absolute (blockified) that gets a child while it is display: none and is
+# shown again before the next layout gets no box in Ladybird (on a site the slideshow's <picture class="item loading">
+# gets an <img> and its class changed – the page header white). Runs in Ladybird: a visible absolutely/fixed positioned
+# element of an inline tag without client rects whose parent has a box.
+- id: abspos-inline-child-added-while-hidden-no-box
+  issue: "#14882"
+  fixed: "ac55232f2b8"
+  text: "an abspos inline element that gets children while display:none has no box when shown"
+  prefix: ["image-differs", "layout:", "less-content"]
+  run_in: ladybird
+  js: |
+    for (const e of document.querySelectorAll('span, picture, a, i, em, b, strong, small, label, font, abbr, cite, q, u, s, mark')) {
+      const cs = getComputedStyle(e);
+      if (cs.display === 'none' || cs.display === 'contents' || (cs.position !== 'absolute' && cs.position !== 'fixed')) continue;
+      if (!e.firstChild || e.getClientRects().length) continue;
+      const p = e.parentElement;
+      if (p && p.getClientRects().length && getComputedStyle(p).display !== 'contents') return e.localName + '.' + String(e.className).slice(0, 30);
+    }
+    return false;
+
+# 2026-11-14: a column flex container with aspect-ratio does not grow to its content (no min-content minimum height) in
+# Ladybird – on a site the gallery cards (aspect-ratio 1 / 1.5) 340 against 459, the text is clipped. Runs in the
+# reference browser: a visible column flex with aspect-ratio and overflow visible that is at least 2 px taller than the
+# ratio gives.
+- id: column-flex-aspect-ratio-not-growing
+  issue: "#14687"
+  fixed: "5b0bb7fa775"
+  text: "a column flex with aspect-ratio does not grow to its content (no min-content minimum height)"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "overflow", "zero-size-text"]
+  js: |
+    for (const e of document.querySelectorAll('body *')) {
+      const s = getComputedStyle(e);
+      if (!/flex/.test(s.display) || !/^column/.test(s.flexDirection) || !s.aspectRatio || s.aspectRatio === 'auto') continue;
+      if (s.overflowY !== 'visible' || s.overflowX !== 'visible') continue;
+      const m = s.aspectRatio.match(/([\d.]+)\s*\/\s*([\d.]+)\s*$/) || s.aspectRatio.match(/^([\d.]+)$/);
+      if (!m) continue;
+      const ratio = parseFloat(m[1]) / (m[2] ? parseFloat(m[2]) : 1), r = e.getBoundingClientRect(), p = x => parseFloat(s[x]) || 0;
+      const cb = s.boxSizing === 'content-box';   // the ratio applies to the content box
+      const w = r.width - (cb ? p('paddingLeft') + p('paddingRight') + p('borderLeftWidth') + p('borderRightWidth') : 0);
+      const h = r.height - (cb ? p('paddingTop') + p('paddingBottom') + p('borderTopWidth') + p('borderBottomWidth') : 0);
+      if (w > 20 && ratio > 0 && h > w / ratio + 2) return 'column flex aspect-ratio ' + s.aspectRatio + ' ' + Math.round(r.width) + '×' + Math.round(r.height) + ' (the ratio gives ' + Math.round(w / ratio) + ')';
+    }
+    return false;
+
+# 2026-11-14: an inline element's end padding (and border) is not counted when breaking lines if the text ends with a
+# space, so the line overflows – on a site an inline h1 with padding 0 16px and template whitespace: one line in Ladybird,
+# two in the other engines. Runs in the reference browser: an inline element with end padding/border whose text ends with
+# whitespace, that wraps into several lines but would fit on one line without the end padding.
+- id: inline-end-padding-ignored-before-trailing-space
+  issue: "#14690"
+  fixed: "66429951416"
+  text: "an inline element's end padding is not counted when breaking if the text ends with a space"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "overflow", "zero-size-text"]
+  js: |
+    let n = 0;
+    for (const e of document.querySelectorAll('body *')) {
+      const s = getComputedStyle(e); if (s.display !== 'inline') continue;
+      const end = (parseFloat(s.paddingRight) || 0) + (parseFloat(s.borderRightWidth) || 0); if (end < 2) continue;
+      if (!/\s$/.test(e.textContent) || !e.textContent.trim()) continue;
+      const rs = [...e.getClientRects()].filter(r => r.width > 0); if (rs.length < 2) continue;
+      if (++n > 200) break;
+      let b = e.parentElement; while (b && getComputedStyle(b).display === 'inline') b = b.parentElement; if (!b) continue;
+      const bs = getComputedStyle(b), cw = b.clientWidth - parseFloat(bs.paddingLeft) - parseFloat(bs.paddingRight);
+      const k = e.cloneNode(true); k.style.cssText += ';white-space:nowrap;position:absolute;visibility:hidden;left:0;top:0';
+      b.appendChild(k); const w = k.getBoundingClientRect().width; k.remove();
+      if (w > cw + 0.5 && w - end <= cw) return 'inline ' + e.tagName.toLowerCase() + '.' + (e.classList[0] || '') + ' ' + Math.round(w) + ' in ' + Math.round(cw);
+    }
+    return false;
+
+# 2026-11-14: an empty block that is the last child of a BFC root (flow-root, flex item …) gets its top and bottom margins
+# summed in Ladybird instead of collapsing (40/40 → 80, 40/30 → 70; right in the middle of the flow) – on a site an empty
+# info block with margin 40px 0 made the row 80 against 40. Runs in the reference browser: an empty block (height 0, no
+# vertical padding/border) with both margins > 0 as the last in-flow child of a BFC root.
+- id: empty-last-block-in-bfc-margins-summed
+  issue: "#14689"
+  fixed: "56b0e9e56ab"
+  text: "an empty block last in a BFC root: top and bottom margins are summed instead of collapsing"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "overflow", "zero-size-text"]
+  js: |
+    const bfc = p => { const s = getComputedStyle(p), f = p.parentElement && getComputedStyle(p.parentElement).display;
+      return /flow-root|inline-block|table-cell/.test(s.display) || s.overflow !== 'visible' || /flex|grid/.test(f || '') || s.float !== 'none' || /absolute|fixed/.test(s.position); };
+    const outOfFlow = c => { const s = getComputedStyle(c); return /absolute|fixed/.test(s.position) || s.display === 'none' || s.float !== 'none'; };
+    for (const x of document.querySelectorAll('body *')) {
+      const s = getComputedStyle(x);
+      if (s.display !== 'block' || bfc(x) || x.getBoundingClientRect().height !== 0) continue;
+      if (!(parseFloat(s.marginTop) > 0 && parseFloat(s.marginBottom) > 0)) continue;
+      if (parseFloat(s.paddingTop) || parseFloat(s.paddingBottom) || parseFloat(s.borderTopWidth) || parseFloat(s.borderBottomWidth)) continue;
+      const p = x.parentElement; if (!p || !bfc(p) || p.getBoundingClientRect().width === 0) continue;
+      let c = p.lastElementChild; while (c && outOfFlow(c)) c = c.previousElementSibling;
+      if (c !== x) continue;
+      let n = x.nextSibling, text = false; while (n) { if (n.nodeType === 3 && n.textContent.trim()) text = true; n = n.nextSibling; }
+      if (text) continue;
+      return 'empty last block ' + x.tagName.toLowerCase() + '.' + (x.classList[0] || '') + ' ' + s.marginTop + '/' + s.marginBottom + ' in ' + p.tagName.toLowerCase() + '.' + (p.classList[0] || '');
+    }
+    return false;
+
+# 2026-11-14: a negative and a positive bottom margin that collapse to exactly 0 give only the negative one in Ladybird,
+# when the chain ends in a BFC root (flow-root, flex item …) – on a site (.mc1 -500px > .mc2 500px) the section was 500 px
+# too short and the text overlapped. Runs in the reference browser: a last child X with a negative bottom margin without
+# bottom padding/border, whose last child has a positive one that cancels it, in a BFC root.
+- id: bottom-margins-collapsing-to-zero-keep-negative
+  issue: "#14684"
+  fixed: "dfd48da8441"
+  text: "bottom margins that collapse to exactly 0 give only the negative one (BFC root too short)"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "overflow", "zero-size-text"]
+  js: |
+    const bfc = p => { const s = getComputedStyle(p), f = p.parentElement && getComputedStyle(p.parentElement).display;
+      return /flow-root|inline-block|table-cell/.test(s.display) || s.overflow !== 'visible' || /flex|grid/.test(f || '') || s.float !== 'none' || /absolute|fixed/.test(s.position); };
+    const last = e => { let c = e.lastElementChild;
+      while (c && (/absolute|fixed/.test(getComputedStyle(c).position) || getComputedStyle(c).display === 'none' || getComputedStyle(c).float !== 'none')) c = c.previousElementSibling;
+      return c; };
+    for (const x of document.querySelectorAll('body *')) {
+      const s = getComputedStyle(x), m1 = parseFloat(s.marginBottom);
+      if (!(m1 < 0) || parseFloat(s.paddingBottom) || parseFloat(s.borderBottomWidth) || s.display !== 'block' || bfc(x)) continue;
+      const c = last(x); if (!c || getComputedStyle(c).display !== 'block') continue;
+      const m2 = parseFloat(getComputedStyle(c).marginBottom);
+      if (!(m2 > 0) || Math.abs(m1 + m2) > 0.01) continue;
+      const p = x.parentElement; if (!p || last(p) !== x || !bfc(p)) continue;
+      if (x.getBoundingClientRect().height > 20) return 'margins ' + m1 + '/' + m2 + ' in ' + p.tagName.toLowerCase() + '.' + (p.classList[0] || '');
+    }
+    return false;
+
+- id: float-negative-margin-top-after-inline-content
+  issue: "#14149"
+  fixed: "3576a58647"
+  text: "a float with a negative margin-top after inline content on the same line pushes the content aside (2026-11-10)"
+  prefix: ["mobile-overflow", "overflow", "layout:position:", "mobile-layout:position:"]
+  js: |
+    // A float with a negative margin-top whose nearest previous sibling is inline content that (in the reference browser) ends below the float's top edge
+    const inl = n => n.nodeType === 3 ? n.textContent.trim() !== '' : n.nodeType === 1 && (/^inline/.test(getComputedStyle(n).display) || n.tagName === 'IMG');
+    for (const f of Array.from(document.querySelectorAll('body *')).slice(0, 6000)) {
+      const c = getComputedStyle(f); if (c.float === 'none' || !(parseFloat(c.marginTop) < 0)) continue;
+      let p = f.previousSibling; while (p && ((p.nodeType === 3 && !p.textContent.trim()) || p.nodeType === 8 || (p.nodeType === 1 && getComputedStyle(p).display === 'none'))) p = p.previousSibling;
+      if (!p || !inl(p)) continue;
+      const r = document.createRange(); r.selectNode(p); const pb = r.getBoundingClientRect(), fb = f.getBoundingClientRect();
+      if (pb.height > 0 && fb.height > 0 && pb.bottom > fb.top + 1) return (f.className || f.tagName) + ' margin-top ' + c.marginTop;
+    }
+    return false;
+
+- id: flex-container-intrinsic-width-ignores-img-max-height
+  issue: "#14252"
+  fixed: "5f19d6f289"
+  text: "the flex container's intrinsic width ignores the image item's max-height (Teamtailor's logo link)"
+  prefix: ["layout:width:flex>", "layout:position:flex>", "mobile-layout:width:flex>", "mobile-layout:position:flex>"]
+  js: |
+    // An image with max-height that is a flex item in a flex container that (in the reference browser) is as wide as the
+    // image, while the image's natural width is larger – in Ladybird the container becomes as wide as the natural width (2026-11-10)
+    for (const i of document.images) {
+      const p = i.parentElement; if (!p || !i.naturalWidth) continue;
+      const pc = getComputedStyle(p), ic = getComputedStyle(i);
+      if (!/flex/.test(pc.display) || ic.maxHeight === 'none' || ic.position === 'absolute') continue;
+      const iw = i.getBoundingClientRect().width, pw = p.getBoundingClientRect().width;
+      if (!(iw > 0 && i.naturalWidth > iw + 10 && Math.abs(pw - iw) <= 2 + parseFloat(pc.paddingLeft) + parseFloat(pc.paddingRight))) continue;
+      // The container's width must depend on the image: without max-height it should grow (otherwise a definite width – no effect)
+      const previous = i.style.maxHeight; i.style.maxHeight = 'none'; const pw2 = p.getBoundingClientRect().width; i.style.maxHeight = previous;
+      if (pw2 > pw + 10) return (p.className || p.tagName).toString().slice(0, 40) + ' ' + Math.round(iw) + '/' + i.naturalWidth + ' grows to ' + Math.round(pw2);
+    }
+    return false;
+
+# Mobile view (2026-11-10): the tests run in the reference browser after the visit (desktop width) and look for the
+# pattern, not for the overflow.
+- id: abspos-auto-insets-shrink-against-container-width
+  issue: "#14231"
+  fixed: "5f19d6f289"
+  text: "abspos with left/right/width auto shrinks against the whole container width, not from the static position (Abou e-services)"
+  prefix: ["mobile-overflow", "mobile-layout:"]
+  js: |
+    const M = 390;
+    for (const e of document.querySelectorAll('body *')) {
+      const c = getComputedStyle(e); if (c.position !== 'absolute' || !e.parentElement || !e.textContent.trim()) continue;
+      let m; try { m = e.computedStyleMap(); } catch (x) { continue; }
+      if (String(m.get('left')) !== 'auto' || String(m.get('right')) !== 'auto' || String(m.get('width')) !== 'auto') continue;
+      const ta = getComputedStyle(e.parentElement).textAlign;
+      const w = e.getBoundingClientRect().width;
+      if ((/center/.test(ta) && w > M / 2) || (/right|end/.test(ta) && w > 20)) return (e.id || e.tagName) + ' ' + ta + ' ' + Math.round(w);
+    }
+    return false;
+
+- id: transformed-block-in-inline-untransformed-overflow
+  issue: "#14233"
+  fixed: "f3aaffc797"
+  text: "a transformed block in an inline element counts in scrollable overflow at its untransformed position (a newspaper group's sites)"
+  prefix: ["mobile-overflow", "overflow"]
+  js: |
+    // The transform may be in a media query for mobile width: rules with translate, also inside @media
+    const sel = []; const walk = rr => { for (const r of rr) { try {
+      if (r.selectorText && r.style && /translate/.test(r.style.transform || '')) sel.push(r.selectorText);
+      if (r.cssRules) walk(r.cssRules); } catch (x) {} } };
+    for (const s of document.styleSheets) { try { walk(s.cssRules); } catch (x) {} }
+    for (const e of document.querySelectorAll('body *')) {
+      if (getComputedStyle(e).display !== 'inline') continue;
+      for (const b of e.children) { const c = getComputedStyle(b);
+        if (!/^(block|flex|grid|flow-root|table)$/.test(c.display)) continue;
+        if (c.transform !== 'none' && Math.abs(new DOMMatrix(c.transform).m41) >= 20) return e.tagName.toLowerCase() + ' > ' + b.tagName.toLowerCase();
+        const t = sel.find(x => { try { return b.matches(x); } catch (y) { return false; } });
+        if (t) return e.tagName.toLowerCase() + ' > ' + b.tagName.toLowerCase() + ' (' + t.slice(0, 60) + ')'; }
+    }
+    return false;

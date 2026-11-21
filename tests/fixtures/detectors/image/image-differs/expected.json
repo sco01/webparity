@@ -1,0 +1,10 @@
+{
+ "detector": "image",
+ "must": [
+  "image-differs"
+ ],
+ "must_not": [],
+ "categories": {
+  "image-differs": "error"
+ }
+}

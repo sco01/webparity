@@ -1,0 +1,7 @@
+{
+ "detector": "script_error",
+ "must": [
+  "script-error:[TypeError] foo.bar is not a function"
+ ],
+ "must_not": []
+}

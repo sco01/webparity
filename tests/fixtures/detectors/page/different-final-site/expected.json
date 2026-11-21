@@ -1,0 +1,12 @@
+{
+ "detector": "page",
+ "must": [
+  "different-final-site"
+ ],
+ "must_not": [
+  "less-content"
+ ],
+ "categories": {
+  "different-final-site": "info"
+ }
+}

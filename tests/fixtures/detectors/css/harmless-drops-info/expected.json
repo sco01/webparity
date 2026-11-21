@@ -1,0 +1,15 @@
+{
+ "detector": "css",
+ "must": [
+  "css-dropped:-webkit-text-stroke-width:px",
+  "css-dropped:outline-color:-webkit-focus-ring-color",
+  "css-dropped:appearance:base-select"
+ ],
+ "must_not": [],
+ "categories": {
+  "css-dropped:-webkit-text-stroke-width:px": "info",
+  "css-dropped:outline-style:auto": "info",
+  "css-dropped:appearance:base-select": "info",
+  "css-dropped:perspective:value": "info"
+ }
+}

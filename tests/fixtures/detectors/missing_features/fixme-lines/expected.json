@@ -1,0 +1,10 @@
+{
+ "detector": "missing_features",
+ "must": [
+  "missing-feature:FIXME: Unimplemented IDL interface: 'XSLTProcessor'"
+ ],
+ "must_not": [],
+ "categories": {
+  "missing-feature:FIXME: Unimplemented IDL interface: 'XSLTProcessor'": "info"
+ }
+}

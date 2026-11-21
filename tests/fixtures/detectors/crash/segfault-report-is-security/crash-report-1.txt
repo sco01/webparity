@@ -1,0 +1,4 @@
+Ladybird crash report, format 1
+Process: WebContent
+Termination signal: SIGSEGV
+Captured signal: SIGSEGV

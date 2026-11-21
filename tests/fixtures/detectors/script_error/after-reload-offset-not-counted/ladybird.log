@@ -1,0 +1,7 @@
+1.0 start
+1.0 WebContent(3): Unhandled JavaScript exception: [TypeError] foo.bar is not a function
+1.0 WebContent(3):     at init (https://www.example.test/app.js:1:0)
+1.1 WebContent(3): Unhandled JavaScript exception: [TypeError] foo.bar is not a function
+1.1 WebContent(3):     at init (https://www.example.test/app.js:1:1)
+1.2 WebContent(3): Unhandled JavaScript exception: [TypeError] foo.bar is not a function
+1.2 WebContent(3):     at init (https://www.example.test/app.js:1:2)

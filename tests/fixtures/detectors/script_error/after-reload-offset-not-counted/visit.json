@@ -1,0 +1,408 @@
+{
+ "schema": 1,
+ "id": "20261121-120000-abcdef",
+ "url": "https://www.example.test/",
+ "browsers": {
+  "ladybird": {
+   "load": {
+    "seconds": 2.0,
+    "waited": 4.0,
+    "stable": true
+   },
+   "probe": {
+    "title": "Example page",
+    "url": "https://www.example.test/",
+    "content_type": "text/html",
+    "elements": 500,
+    "text": 3000,
+    "canvas": 0,
+    "canvas_visible": 0,
+    "resources": {
+     "script": 10,
+     "css": 3,
+     "img": 20
+    },
+    "resources_total": 33,
+    "resource_list": [
+     "https://www.example.test/assets/file0.js",
+     "https://www.example.test/assets/file1.js",
+     "https://www.example.test/assets/file2.js",
+     "https://www.example.test/assets/file3.js",
+     "https://www.example.test/assets/file4.js",
+     "https://www.example.test/assets/file5.js",
+     "https://www.example.test/assets/file6.js",
+     "https://www.example.test/assets/file7.js",
+     "https://www.example.test/assets/file8.js",
+     "https://www.example.test/assets/file9.js",
+     "https://www.example.test/assets/style0.css",
+     "https://www.example.test/assets/style1.css",
+     "https://www.example.test/assets/style2.css",
+     "https://www.example.test/img/photo0.jpg",
+     "https://www.example.test/img/photo1.jpg",
+     "https://www.example.test/img/photo2.jpg",
+     "https://www.example.test/img/photo3.jpg",
+     "https://www.example.test/img/photo4.jpg",
+     "https://www.example.test/img/photo5.jpg",
+     "https://www.example.test/img/photo6.jpg",
+     "https://www.example.test/img/photo7.jpg",
+     "https://www.example.test/img/photo8.jpg",
+     "https://www.example.test/img/photo9.jpg",
+     "https://www.example.test/img/photo10.jpg",
+     "https://www.example.test/img/photo11.jpg",
+     "https://www.example.test/img/photo12.jpg",
+     "https://www.example.test/img/photo13.jpg",
+     "https://www.example.test/img/photo14.jpg",
+     "https://www.example.test/img/photo15.jpg",
+     "https://www.example.test/img/photo16.jpg",
+     "https://www.example.test/img/photo17.jpg",
+     "https://www.example.test/img/photo18.jpg",
+     "https://www.example.test/img/photo19.jpg"
+    ],
+    "resource_types": [
+     "script",
+     "script",
+     "script",
+     "script",
+     "script",
+     "script",
+     "script",
+     "script",
+     "script",
+     "script",
+     "link",
+     "link",
+     "link",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img"
+    ],
+    "repeated": [],
+    "error_reports": 0,
+    "broken_images": 0,
+    "font_errors": 0,
+    "font_error_names": [],
+    "font_errors_all": [],
+    "fonts_loaded": [
+     "Body Sans 400 normal"
+    ],
+    "font_errors_unreplaced": 0,
+    "video_stalled": 0,
+    "video_total": 0,
+    "overflow": 0,
+    "height": 3000,
+    "viewport_overflow_x": "visible",
+    "error_texts": [],
+    "empty_root": false,
+    "links": 40,
+    "images": 20,
+    "iframes": [],
+    "canvases": [],
+    "videos": [],
+    "css": {
+     "www.example.test/assets/style0.css": 120,
+     "inline:300:abc": 10
+    },
+    "css_known": {},
+    "css_cross_origin": 0,
+    "large_fixed": [],
+    "zero_size": 0,
+    "zero_size_examples": [],
+    "off_page": 0,
+    "off_page_examples": [],
+    "net_error_page": null,
+    "scroll_lock": false,
+    "objects_without_data": 0,
+    "dom_resources": [
+     "https://www.example.test/assets/file0.js",
+     "https://www.example.test/assets/file1.js",
+     "https://www.example.test/assets/file2.js",
+     "https://www.example.test/assets/file3.js",
+     "https://www.example.test/assets/file4.js",
+     "https://www.example.test/assets/file5.js",
+     "https://www.example.test/assets/file6.js",
+     "https://www.example.test/assets/file7.js",
+     "https://www.example.test/assets/file8.js",
+     "https://www.example.test/assets/file9.js"
+    ],
+    "top_script_hosts": [
+     "www.example.test"
+    ],
+    "frame_hosts": [],
+    "font_sources": {},
+    "font_error_families": [],
+    "viewport": [
+     1440,
+     900
+    ],
+    "blocked": false,
+    "error_page": false
+   },
+   "idle": {
+    "cpu_idle": 2,
+    "cpu_idle_all": 3,
+    "memory_mb": 300,
+    "response_ms": 20
+   },
+   "scroll": {
+    "height": [
+     3000,
+     3000
+    ],
+    "elements": [
+     500,
+     520
+    ],
+    "resources": [
+     30,
+     32
+    ],
+    "bottom": 2100
+   },
+   "wheel": {
+    "scrollable": true,
+    "scrolled": 400,
+    "viewport_overflow_y": "visible"
+   },
+   "mobile": {
+    "viewport": [
+     390,
+     844
+    ],
+    "overflow": 0,
+    "viewport_overflow_x": "visible"
+   },
+   "menu": null,
+   "reload": {
+    "seconds": 2.0,
+    "waited": 4.0,
+    "stable": true,
+    "known_tests": {},
+    "memory": [
+     300,
+     305
+    ],
+    "elements": 500
+   }
+  },
+  "chromium": {
+   "load": {
+    "seconds": 2.0,
+    "waited": 4.0,
+    "stable": true
+   },
+   "probe": {
+    "title": "Example page",
+    "url": "https://www.example.test/",
+    "content_type": "text/html",
+    "elements": 500,
+    "text": 3000,
+    "canvas": 0,
+    "canvas_visible": 0,
+    "resources": {
+     "script": 10,
+     "css": 3,
+     "img": 20
+    },
+    "resources_total": 33,
+    "resource_list": [
+     "https://www.example.test/assets/file0.js",
+     "https://www.example.test/assets/file1.js",
+     "https://www.example.test/assets/file2.js",
+     "https://www.example.test/assets/file3.js",
+     "https://www.example.test/assets/file4.js",
+     "https://www.example.test/assets/file5.js",
+     "https://www.example.test/assets/file6.js",
+     "https://www.example.test/assets/file7.js",
+     "https://www.example.test/assets/file8.js",
+     "https://www.example.test/assets/file9.js",
+     "https://www.example.test/assets/style0.css",
+     "https://www.example.test/assets/style1.css",
+     "https://www.example.test/assets/style2.css",
+     "https://www.example.test/img/photo0.jpg",
+     "https://www.example.test/img/photo1.jpg",
+     "https://www.example.test/img/photo2.jpg",
+     "https://www.example.test/img/photo3.jpg",
+     "https://www.example.test/img/photo4.jpg",
+     "https://www.example.test/img/photo5.jpg",
+     "https://www.example.test/img/photo6.jpg",
+     "https://www.example.test/img/photo7.jpg",
+     "https://www.example.test/img/photo8.jpg",
+     "https://www.example.test/img/photo9.jpg",
+     "https://www.example.test/img/photo10.jpg",
+     "https://www.example.test/img/photo11.jpg",
+     "https://www.example.test/img/photo12.jpg",
+     "https://www.example.test/img/photo13.jpg",
+     "https://www.example.test/img/photo14.jpg",
+     "https://www.example.test/img/photo15.jpg",
+     "https://www.example.test/img/photo16.jpg",
+     "https://www.example.test/img/photo17.jpg",
+     "https://www.example.test/img/photo18.jpg",
+     "https://www.example.test/img/photo19.jpg"
+    ],
+    "resource_types": [
+     "script",
+     "script",
+     "script",
+     "script",
+     "script",
+     "script",
+     "script",
+     "script",
+     "script",
+     "script",
+     "link",
+     "link",
+     "link",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img",
+     "img"
+    ],
+    "repeated": [],
+    "error_reports": 0,
+    "broken_images": 0,
+    "font_errors": 0,
+    "font_error_names": [],
+    "font_errors_all": [],
+    "fonts_loaded": [
+     "Body Sans 400 normal"
+    ],
+    "font_errors_unreplaced": 0,
+    "video_stalled": 0,
+    "video_total": 0,
+    "overflow": 0,
+    "height": 3000,
+    "viewport_overflow_x": "visible",
+    "error_texts": [],
+    "empty_root": false,
+    "links": 40,
+    "images": 20,
+    "iframes": [],
+    "canvases": [],
+    "videos": [],
+    "css": {
+     "www.example.test/assets/style0.css": 120,
+     "inline:300:abc": 10
+    },
+    "css_known": {},
+    "css_cross_origin": 0,
+    "large_fixed": [],
+    "zero_size": 0,
+    "zero_size_examples": [],
+    "off_page": 0,
+    "off_page_examples": [],
+    "net_error_page": null,
+    "scroll_lock": false,
+    "objects_without_data": 0,
+    "dom_resources": [
+     "https://www.example.test/assets/file0.js",
+     "https://www.example.test/assets/file1.js",
+     "https://www.example.test/assets/file2.js",
+     "https://www.example.test/assets/file3.js",
+     "https://www.example.test/assets/file4.js",
+     "https://www.example.test/assets/file5.js",
+     "https://www.example.test/assets/file6.js",
+     "https://www.example.test/assets/file7.js",
+     "https://www.example.test/assets/file8.js",
+     "https://www.example.test/assets/file9.js"
+    ],
+    "top_script_hosts": [
+     "www.example.test"
+    ],
+    "frame_hosts": [],
+    "font_sources": {},
+    "font_error_families": [],
+    "viewport": [
+     1440,
+     900
+    ],
+    "blocked": false,
+    "error_page": false
+   },
+   "idle": {
+    "cpu_idle": 2,
+    "cpu_idle_all": 3,
+    "memory_mb": 300,
+    "response_ms": 20
+   },
+   "scroll": {
+    "height": [
+     3000,
+     3000
+    ],
+    "elements": [
+     500,
+     520
+    ],
+    "resources": [
+     30,
+     32
+    ],
+    "bottom": 2100
+   },
+   "wheel": {
+    "scrollable": true,
+    "scrolled": 400,
+    "viewport_overflow_y": "visible"
+   },
+   "mobile": {
+    "viewport": [
+     390,
+     844
+    ],
+    "overflow": 0,
+    "viewport_overflow_x": "visible"
+   },
+   "menu": null,
+   "reload": {
+    "seconds": 2.0,
+    "waited": 4.0,
+    "stable": true,
+    "known_tests": {}
+   }
+  }
+ },
+ "steps": {},
+ "findings": [],
+ "config": {
+  "browsers": [
+   "ladybird",
+   "chromium"
+  ]
+ },
+ "build": {},
+ "log_reload_offset": 10
+}

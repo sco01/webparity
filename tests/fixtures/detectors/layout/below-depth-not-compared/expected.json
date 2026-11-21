@@ -1,0 +1,7 @@
+{
+ "detector": "layout",
+ "must": [],
+ "must_not": [
+  "layout:"
+ ]
+}

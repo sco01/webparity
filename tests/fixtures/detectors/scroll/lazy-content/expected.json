@@ -1,0 +1,7 @@
+{
+ "detector": "scroll",
+ "must": [
+  "scroll-lazy-content"
+ ],
+ "must_not": []
+}

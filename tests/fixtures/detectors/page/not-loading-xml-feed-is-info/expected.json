@@ -1,0 +1,10 @@
+{
+ "detector": "page",
+ "must": [
+  "not-loading:xml-feed"
+ ],
+ "must_not": [],
+ "categories": {
+  "not-loading:xml-feed": "info"
+ }
+}

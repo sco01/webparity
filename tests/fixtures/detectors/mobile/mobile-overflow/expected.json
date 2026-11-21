@@ -1,0 +1,7 @@
+{
+ "detector": "mobile",
+ "must": [
+  "mobile-overflow"
+ ],
+ "must_not": []
+}

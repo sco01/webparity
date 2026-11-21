@@ -1,0 +1,12 @@
+{
+ "detector": "mobile",
+ "must": [
+  "mobile-overflow-above"
+ ],
+ "must_not": [
+  "mobile-overflow"
+ ],
+ "categories": {
+  "mobile-overflow-above": "info"
+ }
+}

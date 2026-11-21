@@ -1,0 +1,10 @@
+{
+ "detector": "network",
+ "must": [
+  "resource-buffer-full"
+ ],
+ "must_not": [
+  "fewer-resources",
+  "missing-resources"
+ ]
+}

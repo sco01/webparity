@@ -1,0 +1,10 @@
+{
+ "detector": "css",
+ "must": [
+  "css-dropped:opacity:value"
+ ],
+ "must_not": [],
+ "known": {
+  "css-dropped:opacity:value": "webkit-opacity"
+ }
+}

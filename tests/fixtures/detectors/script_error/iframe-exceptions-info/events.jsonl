@@ -1,0 +1,1 @@
+{"t": 0, "browser": "ladybird", "step": "probe", "method": "log.entryAdded", "context": "C2", "top": false, "type": "javascript", "level": "error", "text": "TypeError: foo.bar is not a function"}

@@ -1,0 +1,7 @@
+{
+ "detector": "network",
+ "must": [
+  "failed-loads"
+ ],
+ "must_not": []
+}

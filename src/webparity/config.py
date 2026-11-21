@@ -56,7 +56,11 @@ DEFAULTS: dict[str, Any] = {
         "user_agent": "webparity (+https://github.com/sco01/webparity)",
         "interval_minutes": 60,
     },
+    # Known differences and bugs: the YAML directory (default: known/ next to the package)
+    "known": {"dir": ""},
     "ladybird": {
+        # The Ladybird source checkout, for "is this fix in the build" (git merge-base); read-only
+        "source": "/src",
         # The WebDriver log and profile shared with the ladybird container, for crashes and crash reports
         "log": "/run/webparity/ladybird/webdriver.log",
         "profile": "/run/webparity/ladybird/profile",

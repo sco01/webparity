@@ -1,0 +1,282 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# Known bug patterns in CSS parsing, the cascade and computed values, and in font loading and font fallback.
+
+# 2026-11-14: when no family in the stack is found, Ladybird falls back to sans-serif, the other engines to the default
+# font (serif). Runs in the reference browser: visible text whose stack lacks a generic family and is drawn with the same
+# width as serif but not as sans-serif (= no family was found).
+- id: font-stack-without-match-or-generic-family
+  issue: "#14682"
+  text: "a stack without a match and without a generic family: Ladybird uses sans-serif, the others serif"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "zero-size-text", "overflow"]
+  js: |
+    const GEN = /(^|,)\s*(sans-serif|serif|monospace|cursive|fantasy|system-ui|ui-[a-z-]+|math|emoji|fangsong)\s*(,|$)/i;
+    const probe = document.createElement('span'); probe.style.fontFamily = 'initial'; document.documentElement.appendChild(probe);
+    const standard = getComputedStyle(probe).fontFamily; probe.remove();
+    const measure = (fam, s) => { const x = document.createElement('span'); x.style.cssText = `position:absolute;visibility:hidden;white-space:nowrap;font:${s.fontStyle} ${s.fontWeight} 20px ${fam}`;
+                                  x.textContent = 'Hamburgefonstiv 0123'; document.body.appendChild(x); const w = x.getBoundingClientRect().width; x.remove(); return w; };
+    const seen = new Set();
+    for (const e of document.querySelectorAll('body *')) {
+      if (![...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) continue;
+      const r = e.getBoundingClientRect(); if (r.width < 1 || r.height < 1) continue;
+      const s = getComputedStyle(e), fam = s.fontFamily;
+      if (fam === standard || GEN.test(fam) || seen.has(fam)) continue; seen.add(fam);
+      const w = measure(fam, s);
+      if (Math.abs(w - measure('serif', s)) < 0.5 && Math.abs(w - measure('sans-serif', s)) > 2) return 'no match: ' + fam.slice(0, 60);
+    }
+    return false;
+
+# 2026-11-14: Arial, Times New Roman and Courier New do not follow fontconfig's metric aliases (Liberation Sans/Serif/Mono)
+# in Ladybird on Linux – the stack falls through to the next family (on a site: Arial, Courier, monospace → everything in
+# monospace). Runs in the reference browser: visible text whose stack starts with such a family (not a web font) and whose
+# next family is not the matching generic or Liberation family.
+- id: metric-font-aliases-not-followed
+  issue: "#14680"
+  text: "Arial/Times New Roman/Courier New do not follow fontconfig aliases"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "zero-size-text", "overflow"]
+  js: |
+    // what differs: Ladybird skips the family; the next generic family in the stack (with none: sans-serif, Ladybird's
+    // default) decides – only visible when it is not the alias's own category
+    const TARGET = {'arial': 'sans-serif', 'times new roman': 'serif', 'courier new': 'monospace'};
+    const GEN = ['sans-serif', 'serif', 'monospace', 'cursive', 'fantasy', 'system-ui', 'ui-sans-serif', 'ui-serif', 'ui-monospace'];
+    const web = new Set([...document.fonts].map(f => f.family.replace(/["']/g, '').toLowerCase()));
+    // the reference browser reports its default as "Times New Roman" – the same font as Ladybird's serif, no difference (2026-11-14)
+    const probe = document.createElement('span'); probe.style.fontFamily = 'initial'; document.documentElement.appendChild(probe);
+    const standard = getComputedStyle(probe).fontFamily; probe.remove();
+    for (const e of document.querySelectorAll('body *')) {
+      if (![...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) continue;
+      const r = e.getBoundingClientRect(); if (r.width < 1 || r.height < 1) continue;
+      if (getComputedStyle(e).fontFamily === standard) continue;
+      const fam = getComputedStyle(e).fontFamily.split(',').map(x => x.trim().replace(/["']/g, '').toLowerCase());
+      const first = fam[0]; if (!TARGET[first] || web.has(first)) continue;
+      const gen = fam.slice(1).find(x => GEN.includes(x)) || 'sans-serif';
+      if (gen !== TARGET[first]) return fam.slice(0, 4).join(', ') + ' → ' + gen;
+    }
+    return false;
+
+- id: font-file-content-type-mismatch
+  issue: "#14139"
+  fixed: "d880f4c326"
+  text: "the font file's content does not match its Content-Type (e.g. TrueType served as font/woff2)"
+  prefix: ["font-error:"]
+  async: true
+  js: |
+    const urls = new Set();
+    const walk = rs => { for (const r of rs) {
+      if (r instanceof CSSFontFaceRule) { const m = (r.style.getPropertyValue('src') || '').match(/url\(\s*["']?([^"')]+)["']?\s*\)/);   // first source
+        if (m) try { urls.add(new URL(m[1], (r.parentStyleSheet && r.parentStyleSheet.href) || location.href).href); } catch (e) {} }
+      else if (r instanceof CSSImportRule) { try { if (r.styleSheet) walk(r.styleSheet.cssRules); } catch (e) {} }
+      else try { if (r.cssRules) walk(r.cssRules); } catch (e) {} } };
+    for (const ss of document.styleSheets) { try { walk(ss.cssRules); } catch (e) {} }
+    const sfnt = ['\x00\x01\x00\x00', 'OTTO', 'true', 'ttcf'], woff = ['wOFF'], woff2 = ['wOF2'];
+    const types = {'font/woff2': woff2, 'application/font-woff2': woff2, 'font/woff': woff, 'application/font-woff': woff, 'font/x-woff': woff,
+                   'font/ttf': sfnt, 'application/x-font-ttf': sfnt, 'font/otf': sfnt};
+    setTimeout(() => done(false), 10000);
+    Promise.all([...urls].filter(u => /^https?:/.test(u)).slice(0, 30).map(u => fetch(u, {headers: {Range: 'bytes=0-3'}}).then(async r => {
+      const t = (r.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+      const magic = String.fromCharCode(...new Uint8Array(await r.arrayBuffer()).slice(0, 4));
+      return types[t] && !types[t].includes(magic) ? u : null; }).catch(() => null)))
+      .then(x => { x = x.filter(Boolean); done(x.length ? x.slice(0, 3) : false); });
+
+- id: webkit-font-feature-settings-or-clip-path-only
+  issue: "#14203"
+  fixed: "d880f4c326"
+  text: "-webkit-font-feature-settings / -webkit-clip-path without the unprefixed property"
+  prefix: ["css-dropped:font-feature-settings:", "css-dropped:clip-path:"]
+  async: true
+  js: |
+    const re = /-webkit-(font-feature-settings|clip-path)\s*:/;
+    setTimeout(() => done(false), 10000);
+    const inline = [...document.querySelectorAll('style')].some(s => re.test(s.textContent));
+    if (inline) return done(['inline']);
+    const sheets = [...document.styleSheets].map(s => s.href).filter(h => h && /^https?:/.test(h)).slice(0, 15);
+    Promise.all(sheets.map(h => fetch(h).then(r => r.text()).then(t => re.test(t) ? h : null).catch(() => null)))
+      .then(x => { x = x.filter(Boolean); done(x.length ? x.slice(0, 3) : false); });
+
+- issue: "#14113"
+  fixed: "8248dd2391"
+  text: "-webkit-radial-gradient() is not supported (the signature points out the cause)"
+  regex: '^css-dropped:[\w-]+:-webkit-(repeating-)?radial-gradient'
+
+- issue: "#14408"
+  fixed: "fdce9b7121"
+  text: "-webkit-text-stroke is not supported (the signature points out the cause)"
+  regex: '^css-dropped:-webkit-text-stroke-(width|color):'
+
+# 2026-11-16: text-align -webkit-center/-left/-right is dropped (Ladybird only has -libweb-*); the signature points out
+# the cause.
+- issue: "#14927"
+  fixed: "40a4e7d04f5"
+  text: "text-align: -webkit-center/-left/-right is not supported (Goodlayers .gdlr-logo and others)"
+  regex: '^css-dropped:text-align:-webkit-(center|left|right)$'
+
+# 2026-11-13: logical -webkit- aliases (-webkit-padding-start, -webkit-margin-before …) are dropped in Ladybird (and
+# Firefox), Chromium applies them (on a site ul { -webkit-padding-start: 0 !important } → the menu on two lines). Runs in
+# the reference browser (async): a rule in the page's stylesheets (style elements and fetched links) with such an alias
+# whose selector matches a visible element.
+- id: logical-webkit-aliases-dropped
+  issue: "#14574"
+  fixed: "1293c639bb6"
+  text: "logical -webkit- aliases (-webkit-padding-start, -webkit-margin-before …) are dropped"
+  prefix: ["layout:", "mobile-layout:", "less-content", "shorter-page", "image-differs"]
+  async: true
+  js: |
+    setTimeout(() => done(false), 10000);
+    const texts = [...document.querySelectorAll('style')].map(s => s.textContent || '');
+    Promise.all([...document.querySelectorAll('link[rel~=stylesheet]')].slice(0, 30).map(l => fetch(l.href).then(r => r.text()).catch(() => '')))
+      .then(t => {
+        // linear search (2026-11-14): the old expression ([^{}@;]+)\{[^{}]*… backtracked on large stylesheets and hit
+        // the script time limit – look for the property and walk back to the rule's selector
+        const RE = /-webkit-(?:padding|margin)-(?:start|end|before|after)\s*:|-webkit-(?:border-(?:start|end)|logical-(?:width|height))/g;
+        for (const text of texts.concat(t)) for (const m of text.matchAll(RE)) {
+          const brace = text.lastIndexOf('{', m.index), before = Math.max(text.lastIndexOf('}', brace - 1), text.lastIndexOf(';', brace - 1), text.lastIndexOf('{', brace - 1));
+          if (brace < 0 || text.lastIndexOf('}', m.index) > brace) continue;
+          const sel = text.slice(before + 1, brace).replace(/\/\*[\s\S]*?\*\//g, '').trim();
+          if (!sel || sel.startsWith('@')) continue;
+          if (!sel) continue;
+          let el = []; try { el = [...document.querySelectorAll(sel)]; } catch (e) { continue; }
+          const visible = el.find(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
+          if (visible) return done('alias in ' + sel.slice(0, 60));
+        }
+        done(false);
+      });
+
+# 2026-11-13: a print stylesheet counts as script-blocking (HTMLLinkElement.cpp FIXME about media), so load fires before a
+# later script has added a listener that sets media = 'all' (on a site: link[data-css-swap]). Runs in Ladybird: a
+# parser-inserted stylesheet that still has media=print without an onload attribute, and an inline script that both
+# listens for load and sets .media = 'all'.
+- id: print-stylesheet-blocks-scripts-before-media-swap
+  issue: "#14561"
+  fixed: "6d4151efca9"
+  text: "a print stylesheet blocks scripts: load fires before the listener that sets media=all"
+  prefix: ["layout:", "mobile-layout:", "less-content", "shorter-page", "image-differs", "zero-size-text", "overflow"]
+  run_in: ladybird
+  js: |
+    const sheets = [...document.querySelectorAll('link[rel~=stylesheet][media]')].filter(l => /^\s*print\s*$/i.test(l.getAttribute('media'))
+      && !l.hasAttribute('onload') && l.sheet);
+    if (!sheets.length) return false;
+    const scripts = [...document.scripts].filter(s => !s.src).map(s => s.textContent || '');
+    if (!scripts.some(t => /\.media\s*=\s*['"]all['"]/.test(t) && /addEventListener\(\s*['"]load['"]|\.onload\s*=/.test(t))) return false;
+    return 'print sheet left: ' + sheets.length + ' ' + sheets[0].href.split('/').pop().slice(0, 40);
+
+- id: view-timeline-body-source-with-propagated-overflow
+  issue: "#14206"
+  fixed: "754514d7dc"
+  text: "a view timeline with body as its source when body's overflow propagates to the viewport (Wix scroll effects)"
+  prefix: ["layout:", "image-differs", "mobile-layout:", "overflow"]
+  run_in: ladybird
+  js: |
+    const b = document.body, h = document.documentElement; if (!b) return false;
+    if (!/scroll|auto|hidden/.test(getComputedStyle(b).overflowY) || getComputedStyle(h).overflowY !== 'visible') return false;
+    const n = document.getAnimations().filter(a => a.timeline && a.timeline.constructor.name === 'ViewTimeline' && a.timeline.source === b && a.timeline.currentTime === null).length;
+    return n ? n + ' animations' : false;
+
+# 2026-11-15: fonts with hhea ascender/descender 0 but OS/2 metrics (a DIN-Bold and a Frutiger 900 on two sites) get
+# content height 0 in Ladybird – inline boxes 0 high, and with line-height: normal 0-high lines (the other engines take
+# OS/2). Runs in Ladybird: a visible text element with a width but a height < 1.
+- id: font-hhea-zero-metrics-zero-height
+  issue: "#14725"
+  fixed: "2238abd62a1"
+  text: "a font with hhea 0/0 gives content height 0 (a DIN-Bold, a Frutiger 900)"
+  regex: '^(mobile-)?layout:'
+  run_in: ladybird
+  js: |
+    for (const e of Array.from(document.querySelectorAll('body *')).slice(0, 8000)) {
+      if (![...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) continue;
+      const r = e.getBoundingClientRect(); if (r.width < 2 || r.height >= 1) continue;
+      const s = getComputedStyle(e); if (s.visibility === 'hidden' || s.display === 'none' || parseFloat(s.fontSize) < 2) continue;
+      // the same font in a span of its own with line-height: normal – 0 high only if the font's metrics are zero
+      const p = document.createElement('span'); p.textContent = e.textContent.trim().slice(0, 20);
+      p.style.cssText = `all: initial; font-family: ${s.fontFamily}; font-weight: ${s.fontWeight}; font-style: ${s.fontStyle}; font-size: 16px; line-height: normal; position: absolute; left: 0; top: 0`;
+      document.body.append(p); const h = p.getBoundingClientRect().height; p.remove();
+      if (h >= 1) continue;
+      return e.tagName.toLowerCase() + ' ' + s.fontFamily.split(',')[0].slice(0, 20) + ' ' + s.fontWeight + ' lh=' + s.lineHeight;
+    }
+    return false;
+
+# 2026-11-14: Ladybird rounds font-size to 1/64 px (17.6 → 17.59375), so em/rem lengths become slightly too small; a
+# Foundation row (flex-wrap, margins -0.9375rem/0.9375rem, columns calc(16.6667% - 1.875rem) …) that exactly fills its
+# container then wraps (on a site: the article below the sidebar). Runs in the reference browser: a row flex-wrap
+# container whose children lie on one line and fill it to within 0.1 px, and whose root font-size is not an even 1/64 px.
+- id: font-size-rounded-to-64th-px
+  issue: "#14686"
+  text: "font-size is rounded to 1/64 px, em/rem lengths become too small and tight flex rows wrap"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "overflow"]
+  js: |
+    const uneven = v => Math.abs(parseFloat(v) * 64 - Math.round(parseFloat(v) * 64)) > 0.01;
+    if (!uneven(getComputedStyle(document.documentElement).fontSize)) return false;   // rem-based rows (two sites: root 16px, no difference)
+    for (const e of document.querySelectorAll('body *')) {
+      const s = getComputedStyle(e);
+      if (!/flex/.test(s.display) || s.flexWrap !== 'wrap' || !/^row/.test(s.flexDirection)) continue;
+      const k = [...e.children].filter(c => { const cs = getComputedStyle(c); return cs.position !== 'absolute' && cs.position !== 'fixed' && c.getBoundingClientRect().width > 0; });
+      if (k.length < 2) continue;
+      const rs = k.map(c => c.getBoundingClientRect());
+      if (!rs.every((r, i) => i === 0 || r.left >= rs[i - 1].right - 0.5)) continue;   // a single line
+      let sum = (parseFloat(s.columnGap) || 0) * (k.length - 1);
+      k.forEach((c, i) => { const cs = getComputedStyle(c); sum += rs[i].width + parseFloat(cs.marginLeft) + parseFloat(cs.marginRight); });
+      const er = e.getBoundingClientRect();
+      const inner = er.width - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight) - parseFloat(s.borderLeftWidth) - parseFloat(s.borderRightWidth);
+      if (rs[0].height > 20 && inner - sum < 0.1 && inner - sum > -0.5) return 'tight flex row ' + e.tagName.toLowerCase() + '.' + (e.classList[0] || '') + ' ' + (inner - sum).toFixed(3);
+    }
+    return false;
+
+# 2026-11-14: a declaration that is invalid at computed-value time (var() to an undefined or empty variable without a
+# fallback) becomes the UA value in Ladybird (like revert), not unset – on a site Bootstrap's .card-title { margin-bottom:
+# var(--bs-card-title-spacer-y) } outside .card → h3 24px instead of 0. Runs in the reference browser: a rule with
+# margin/padding: var(--x) without a fallback, where --x is empty/undefined on a matched visible element with a UA margin.
+- id: invalid-var-gives-ua-value-instead-of-unset
+  issue: "#14688"
+  fixed: "1ccfff6d03a"
+  text: "an invalid var() (undefined variable) gives the UA value (like revert) instead of unset"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "overflow", "zero-size-text"]
+  js: |
+    const UA = /^(P|H[1-6]|UL|OL|DL|DD|BLOCKQUOTE|FIGURE|PRE|MENU|BODY|FIELDSET|HR)$/;
+    const candidates = [];
+    const walk = rl => { for (const r of rl) { try {
+      if (r.style && r.selectorText) for (const m of r.style.cssText.matchAll(/(?:^|;)\s*((?:margin|padding)[\w-]*)\s*:\s*var\(\s*(--[\w-]+)\s*\)/g))
+        candidates.push([r.selectorText, m[1], m[2]]);   // cssText: shorthands with var() have empty longhands
+      if (r.cssRules && r.cssRules.length) walk(r.cssRules); } catch (e) {} } };
+    for (const ss of document.styleSheets) { try { walk(ss.cssRules); } catch (e) {} }
+    for (const [sel, p, v] of candidates.slice(0, 300)) { let el = []; try { el = document.querySelectorAll(sel); } catch (e) { continue; }
+      for (const e of [...el].slice(0, 50)) { if (!UA.test(e.tagName)) continue;
+        const cs = getComputedStyle(e); if (cs.getPropertyValue(v).trim() !== '') continue;
+        const r = e.getBoundingClientRect(); if (!(r.width > 0 && r.height > 0)) continue;
+        return 'invalid ' + p + ': var(' + v + ') on ' + e.tagName.toLowerCase(); } }
+    return false;
+
+# 2026-11-14: `all: revert` does not restore the UA margins (p, headings …) in Ladybird – a site's cookie pages
+# (.cookie-usage h1, h2, p { all: revert }), text without spacing. Runs in the reference browser: a rule with all: revert
+# whose selector matches a visible p/h1–h6/ul … that has its UA margin (in em).
+- id: all-revert-drops-ua-margins
+  issue: "#14683"
+  fixed: "6bf7564ae53"
+  text: "all: revert does not restore the UA margins (p/headings get margin 0)"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "overflow", "zero-size-text"]
+  js: |
+    const sel = [];
+    const walk = rl => { for (const r of rl) { try {
+      if (r.style && /^\s*revert\s*$/.test(r.style.getPropertyValue('all') || '') && r.selectorText) sel.push(r.selectorText);
+      else if (r.style && r.selectorText && /(^|;)\s*all\s*:\s*revert\b/.test(r.cssText.replace(/^[^{]*\{/, ''))) sel.push(r.selectorText);
+      if (r.cssRules && r.cssRules.length) walk(r.cssRules); } catch (e) {} } };
+    for (const ss of document.styleSheets) { try { walk(ss.cssRules); } catch (e) {} }
+    // only UA margins (in em) on tags that have them – a later author rule can set its own (two sites: div 30px)
+    const UA = {P: [1], H1: [0.67, 0.83, 1, 1.33, 1.67, 2.33], H2: [0.83, 1, 1.33, 1.67, 2.33], H3: [1], H4: [1.33], H5: [1.67], H6: [2.33],
+                UL: [1], OL: [1], DL: [1], BLOCKQUOTE: [1], FIGURE: [1], PRE: [1], MENU: [1]};
+    for (const s of sel) { let el = []; try { el = document.querySelectorAll(s); } catch (e) { continue; }
+      for (const e of el) { const k = UA[e.tagName]; if (!k) continue;
+        const cs = getComputedStyle(e), r = e.getBoundingClientRect(), em = parseFloat(cs.marginTop) / parseFloat(cs.fontSize);
+        if (r.width > 0 && r.height > 0 && em > 0 && k.some(x => Math.abs(em - x) < 0.02)) return 'all: revert ' + e.tagName.toLowerCase() + ' margin ' + cs.marginTop; } }
+    return false;
+
+# 2026-11-14: getComputedStyle().lineHeight gives the unitless number ("1.7") instead of px for elements without a box
+# (display: none); scripts that parseFloat it (Avada's fusion-responsive-typography) write line-height 0.07 inline – on a
+# site the FAQ headings' lines lie on top of each other. Runs in Ladybird: an element with an inline unitless line-height
+# below 0.3.
+- id: computed-line-height-unitless-without-box
+  issue: "#14685"
+  fixed: "1c716280bfb"
+  text: "getComputedStyle().lineHeight is unitless for elements without a box; scripts set line-height ≈ 0"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "overflow", "zero-size-text"]
+  run_in: ladybird
+  js: |
+    const e = [...document.querySelectorAll('[style*="line-height"]')].filter(x => /^0?\.\d+$/.test(x.style.lineHeight) && parseFloat(x.style.lineHeight) < 0.3);
+    return e.length ? 'inline line-height ' + e[0].style.lineHeight + ' ×' + e.length : false;

@@ -1,0 +1,164 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# Measurement artefacts and known differences that are not Ladybird bugs (or not filed yet) and explain findings away.
+
+# 2026-11-14: a list box (<select multiple>/size > 1) under the middle of the window: Ladybird scrolls the inner list in
+# the shadow tree but select.scrollTop stays 0, so the wheel probe sees "no scrolling" where the reference browser sees
+# select.scrollTop 400. No visible effect. Runs in the reference browser.
+- id: listbox-scrolltop-always-zero
+  issue: "measurement-listbox-scrolltop"
+  text: "a list box under the pointer: Ladybird's select.scrollTop is always 0"
+  prefix: ["scroll-locked"]
+  js: |
+    for (const e of document.elementsFromPoint(innerWidth / 2, innerHeight / 2)) {
+      const s = e.tagName === 'OPTION' ? e.closest('select') : e;
+      if (s && s.tagName === 'SELECT' && (s.multiple || s.size > 1) && s.scrollHeight > s.clientHeight + 1)
+        return 'list box ' + (s.name || s.id || '');
+    }
+    return false;
+
+# 2026-11-12: text-overflow: ellipsis changes the layout in Ladybird – the fragment with the ellipsis is shortened and
+# inline elements entirely after the ellipsis get width 0 (at the start of the line); in Chromium and Firefox they keep
+# their width outside the box. No visible effect found (several sites, a publisher's author names). Draft issue
+# (class 4, not filed). Runs in Ladybird.
+- id: inline-after-text-overflow-ellipsis-zero-width
+  issue: "draft:ellipsis-inline"
+  text: "inline elements entirely after a text-overflow ellipsis get width 0 (several sites)"
+  regex: '^(mobile-)?layout:missing:block>inline(-block)?$'
+  run_in: ladybird
+  mobile: true
+  js: |
+    for (const e of Array.from(document.querySelectorAll('body *')).slice(0, 8000)) {
+      if (getComputedStyle(e).display !== 'inline') continue;
+      const r = e.getBoundingClientRect(); if (r.width !== 0 || !r.height || !(e.textContent || '').trim()) continue;
+      for (let a = e.parentElement, d = 0; a && d < 8; a = a.parentElement, d++) {
+        const c = getComputedStyle(a);
+        if (c.textOverflow === 'ellipsis' && c.overflow !== 'visible' && a.scrollWidth > a.clientWidth) return a.tagName.toLowerCase() + '.' + String(a.className).split(' ')[0] + ' ' + a.clientWidth + '/' + a.scrollWidth;
+      }
+    }
+    return false;
+
+# 2026-11-15: an inline element whose only children are floats (Sitevision's div.sv-row/ul.sol-breadcrumbs with display
+# inline, menus): Chromium gives it the block's width, Ladybird width 0 and Firefox 0×0 – Ladybird ≈ Firefox, no visible
+# effect (several sites). Runs in the reference browser.
+- id: inline-with-only-floating-children-width
+  issue: "known:cr-inline-floating-children"
+  text: "an inline element with only floating children: Chromium gives it a width, Ladybird/Firefox 0"
+  regex: '^(mobile-)?layout:missing:block>inline$'
+  js: |
+    for (const e of Array.from(document.querySelectorAll('body *')).slice(0, 8000)) {
+      const s = getComputedStyle(e); if (s.display !== 'inline' || !e.children.length) continue;
+      if ([...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) continue;
+      if (![...e.children].every(c => { const cs = getComputedStyle(c); return cs.float !== 'none' || cs.display === 'none' || cs.position === 'absolute'; })) continue;
+      if (![...e.children].some(c => getComputedStyle(c).float !== 'none')) continue;
+      if (e.getBoundingClientRect().width > 0) return e.tagName.toLowerCase() + '.' + String(e.className).split(' ')[0];
+    }
+    return false;
+
+# 2026-11-14: a known difference without visible effect. Block children after the clamp in a -webkit-line-clamp box
+# (overflow hidden): Chromium gives them one line's height, Ladybird the full height – they are invisible in both (a site,
+# Tailwind line-clamp-3 around several p). Runs in the reference browser: a clamped line-clamp box with a block child
+# that starts below the box's bottom.
+- id: line-clamp-block-children-height
+  issue: "known:line-clamp-block"
+  text: "block children after the clamp in a line-clamp box have different heights (invisible)"
+  prefix: ["layout:", "mobile-layout:", "zero-size-text"]
+  js: |
+    for (const e of document.querySelectorAll('body *')) {
+      const s = getComputedStyle(e);
+      if (!s.webkitLineClamp || s.webkitLineClamp === 'none' || !/hidden|clip/.test(s.overflow)) continue;
+      const r = e.getBoundingClientRect(); if (r.height < 1) continue;
+      for (const c of e.querySelectorAll('p, div, li, h1, h2, h3, h4, h5, h6')) {
+        if (getComputedStyle(c).display.startsWith('inline')) continue;
+        if (c.getBoundingClientRect().top >= r.bottom - 1) return 'line-clamp ' + (e.classList[0] || e.tagName.toLowerCase());
+      }
+    }
+    return false;
+
+# 2026-11-14: a known difference (class 4, saved). Ladybird does not give content-visibility: auto size containment when
+# the element is not relevant to the user (table_group_builder.rs only hooks up hidden), so contain-intrinsic-size is not
+# used off screen – on a site an empty section is 24 px against 2571. Runs in the reference browser: an element with
+# content-visibility: auto and contain-intrinsic-height/-size outside the viewport that is at least 100 px high.
+- id: content-visibility-auto-no-intrinsic-size
+  issue: "known:cv-auto"
+  text: "content-visibility: auto off screen does not get contain-intrinsic-size"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "zero-size-text"]
+  js: |
+    for (const e of document.querySelectorAll('body *')) {
+      const s = getComputedStyle(e);
+      if (s.contentVisibility !== 'auto') continue;
+      if ((s.containIntrinsicHeight || 'none') === 'none' && (s.containIntrinsicBlockSize || 'none') === 'none') continue;
+      const r = e.getBoundingClientRect();
+      if (r.height >= 100 && (r.top > innerHeight * 1.5 || r.bottom < -innerHeight * 0.5)) return 'cv-auto ' + e.tagName.toLowerCase() + '.' + (e.classList[0] || '') + ' ' + Math.round(r.height);
+    }
+    return false;
+
+# 2026-11-14: a percentage row-gap in a column flex with auto height: Chromium and Firefox give 0, Ladybird resolves it
+# against the final height (and shrinks the children) – on a site row-gap 7 %, the spacer 53 → 21, no visible difference.
+# Class 4 until a page with a visible effect turns up. Runs in the reference browser: a column flex with a percentage
+# row-gap and ≥ 2 visible children.
+- id: percent-row-gap-in-auto-height-column-flex
+  issue: "draft:percent-rowgap"
+  text: "a percentage row-gap in a column flex with auto height is resolved against the height (Chromium/Firefox: 0)"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "overflow"]
+  js: |
+    for (const e of document.querySelectorAll('body *')) {
+      const s = getComputedStyle(e);
+      if (!/flex/.test(s.display) || !/^column/.test(s.flexDirection) || !/%/.test(s.rowGap) || parseFloat(s.rowGap) === 0) continue;
+      const k = [...e.children].filter(c => { const r = c.getBoundingClientRect(); return r.height > 0 && !/absolute|fixed/.test(getComputedStyle(c).position); });
+      if (k.length >= 2) return 'column flex row-gap ' + s.rowGap + ' ' + e.tagName.toLowerCase() + '.' + (e.classList[0] || '');
+    }
+    return false;
+
+# 2026-11-14: a known difference (Chromium deviates). A broken image (loaded, naturalWidth 0) with sizes="auto" gets the UA
+# rule's contain: size, and WordPress sets contain-intrinsic-size: 3000px 1500px; Chromium gives it 1500 px height,
+# Ladybird and Firefox the height from the width/height ratio (on a site 201×1500 against 201×201). Runs in the reference
+# browser.
+- id: broken-sizes-auto-image-contain-intrinsic-size
+  issue: "known:cr-broken-image-cis"
+  text: "Chromium gives a broken sizes=auto image its height from contain-intrinsic-size (Ladybird = Firefox)"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "overflow"]
+  js: |
+    for (const i of document.querySelectorAll('img')) {
+      if (!i.complete || i.naturalWidth || !(i.currentSrc || i.src)) continue;
+      const s = getComputedStyle(i); if (!/size/.test(s.contain)) continue;
+      const r = i.getBoundingClientRect(), h = parseFloat(s.containIntrinsicHeight);
+      if (r.width > 0 && r.height >= 150 && Math.abs(r.height - h) < 2 && r.height > r.width * 1.5) return 'broken image ' + Math.round(r.width) + '×' + Math.round(r.height);
+    }
+    return false;
+
+# 2026-11-14: a known difference. FullCalendar 5 (getCanVGrowWithinCell: a div with height 100% in a td in a table with
+# height 100px) gets 0 in Ladybird and Firefox, 100 in Chromium, and then takes its Firefox path (the header row in tbody,
+# a different height distribution) – on a site the calendar is 510 against 511 px. Runs in the reference browser: a
+# FullCalendar table.
+- id: fullcalendar-takes-firefox-path
+  issue: "known:fullcalendar-cell"
+  text: "FullCalendar takes its Firefox path in Ladybird (percentage height in a table cell, like Firefox)"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "overflow"]
+  js: |
+    const t = document.querySelector('.fc table.fc-scrollgrid');
+    if (!t) return false;
+    const r = t.getBoundingClientRect(); return r.width > 0 && r.height > 0 ? 'fullcalendar ' + (t.tHead ? 'thead' : 'without thead') : false;
+
+# 2026-11-14: a measurement error. Chromium and Firefox see the Xvfb screen 3000×2000, Ladybird 1920×1080, so an @media
+# with device-width/-height between them only matches in the reference browser (on a site min-device-width: 2000px →
+# padding 120 instead of 80). Runs in the reference browser: a matching rule whose condition depends on such a limit and
+# whose selector matches a visible element.
+- id: media-device-size-between-screens
+  issue: "measurement-screen"
+  text: "@media device-width/-height between Ladybird's screen (1920×1080) and the Xvfb screen (3000×2000)"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "overflow", "zero-size-text"]
+  js: |
+    const LIMITS = {width: [1920, 3000], height: [1080, 2000]};
+    const depends = m => [...m.matchAll(/(min|max)-device-(width|height)\s*:\s*([\d.]+)px/g)].some(([, mm, d, n]) => {
+      n = parseFloat(n); const [a, b] = LIMITS[d]; return mm === 'min' ? (n > a && n <= b) : (n >= a && n < b); });
+    const visible = sel => { try { return [...document.querySelectorAll(sel)].some(e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; }); } catch (e) { return false; } };
+    const walk = (rules, condition) => {
+      for (const r of rules) {
+        if (r.media && r.cssRules) { const mt = r.media.mediaText; const next = condition || (depends(mt) ? mt : null);   // both directions give a difference
+          const answer = walk(r.cssRules, next); if (answer) return answer; }
+        else if (condition && r.selectorText && visible(r.selectorText)) return condition.slice(0, 50) + ' ' + r.selectorText.slice(0, 50);
+      }
+      return false;
+    };
+    for (const s of document.styleSheets) { let rr; try { rr = s.cssRules; } catch (e) { continue; } const answer = walk(rr, null); if (answer) return answer; }
+    return false;

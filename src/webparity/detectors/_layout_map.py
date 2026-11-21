@@ -1,0 +1,188 @@
+# SPDX-License-Identifier: BSD-2-Clause
+"""The layout comparison: pairs the elements of two layout maps (``webparity.js.LAYOUT``) and returns the causes.
+
+Ported from the old explorer's ``layoutjamforelse`` (2026-11-09). The causes are elements whose size differs without a
+child explaining it (width/height), the outermost element that exists in only one of the maps (missing: 0 x 0 in
+Ladybird; extra: 0 x 0 in the reference), and positioned elements (absolute/fixed) that ended up elsewhere relative to
+their parent with the same size (position). Elements in fixed or sticky layers (cookie banners, headers) do not count.
+Each cause has the signature ``<kind>:<parent display>><display>`` (the tag for replaced elements).
+
+With the reference's map after its reload, elements that differ between the reference's own two loads do not count.
+Elements hidden under content-visibility: hidden in the reference (a closed <details>, hidden=until-found) do not count
+either: Ladybird creates no boxes for them and measures 0 x 0, Chromium and Firefox measure them (known, 2026-11-09 -
+half of layout:missing:block>block).
+"""
+
+from __future__ import annotations
+
+REPLACED = {
+    "img",
+    "svg",
+    "video",
+    "iframe",
+    "input",
+    "button",
+    "select",
+    "textarea",
+    "canvas",
+    "object",
+    "embed",
+    "audio",
+    "progress",
+    "meter",
+}
+# Only the first three screens in the reference - further down lazy loading and time-dependent content differ
+DEPTH = 2700
+
+
+def index(rows: list) -> dict:
+    out: dict = {}
+    for i, r in enumerate(rows):
+        if not isinstance(r, list) or len(r) < 12:
+            continue
+        key, pi, x, y, w, h, disp, pos, flt, text, fs, fp = r[:12]
+        parent = rows[pi][0] if isinstance(pi, int) and 0 <= pi < len(rows) else None
+        fixed = pos in ("fixed", "sticky") or (parent is not None and out.get(parent, {}).get("fixed"))
+        out[key] = {
+            "i": i,
+            "parent": parent,
+            "x": x,
+            "y": y,
+            "w": w,
+            "h": h,
+            "display": disp,
+            "position": pos,
+            "float": flt,
+            "text": text,
+            "fs": fs,
+            "fp": fp,
+            "hidden": len(r) > 12 and bool(r[12]),
+            "cva": len(r) > 13 and bool(r[13]),
+            "fixed": bool(fixed),
+            "tag": key.rsplit("/", 1)[-1].split(":")[0].split("#")[0].split(".")[0],
+        }
+    for key in reversed(list(out)):  # text in the whole subtree (children come after their parent in document order)
+        e = out[key]
+        e["tt"] = e.get("tt", 0) + e["text"]
+        if e["parent"] in out:
+            out[e["parent"]]["tt"] = out[e["parent"]].get("tt", 0) + e["tt"]
+    return out
+
+
+def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list | None = None) -> dict | None:
+    if not lb_rows or not ref_rows:
+        return None
+    L, C = index(lb_rows), index(ref_rows)
+    paired = {k for k in C if k in L and L[k]["fp"] == C[k]["fp"] and L[k]["tag"] == C[k]["tag"]}
+    hidden = {k for k in paired if C[k]["hidden"]}
+    paired -= hidden
+
+    def zero(e):
+        return e["w"] < 1 or e["h"] < 1
+
+    def visible(e):
+        return e["w"] >= 20 and e["h"] >= 10
+
+    unstable = 0
+    if ref_reload_rows:
+        C2 = index(ref_reload_rows)
+
+        # Only the size: a banner that appears pushes the whole page down without any element changing size
+        def moves(a, b):
+            return abs(a["w"] - b["w"]) >= 8 or abs(a["h"] - b["h"]) >= 8
+
+        shaky = {k for k in paired if k not in C2 or C2[k]["fp"] != C[k]["fp"] or moves(C[k], C2[k])}
+        unstable = len(shaky)
+        paired -= shaky
+    kinds: dict[str, str] = {}
+    for k in paired:
+        lb, c = L[k], C[k]
+        if k == "body" or c["fixed"] or lb["fixed"] or c["y"] > DEPTH or c["y"] + c["h"] < 0:
+            continue
+        if c["cva"] and (abs(lb["h"] - c["h"]) >= 24 or abs(lb["w"] - c["w"]) >= 24):
+            # content-visibility: auto (2026-11-10): Chromium gives the element a placeholder size off screen - not a
+            # cause, but counted as an explanation so the ancestors are not pointed out
+            kinds[k] = "cv-auto"
+        elif zero(lb) and visible(c):
+            kinds[k] = "missing"
+        elif zero(c) and visible(lb):
+            kinds[k] = "extra"
+        elif c["display"] == "inline" and c["tag"] not in REPLACED:
+            # Inline elements are not compared by size (2026-11-09): the box is the union of the fragments, and Ladybird
+            # includes images and blocks inside (logo links: 221x68 against 221x18 in Chromium) - its own investigation
+            continue
+        elif not zero(lb) and not zero(c):
+            dw, dh = abs(lb["w"] - c["w"]), abs(lb["h"] - c["h"])
+            # Text wraps differently with different font metrics - a height difference of a few lines does not count
+            # when the element has text
+            height_limit = max(24, 3.2 * c["fs"]) if c["tt"] else 24
+            if dw >= 24 and dw >= 0.25 * max(lb["w"], c["w"]):
+                kinds[k] = "width"
+            elif dh >= height_limit and dh >= 0.25 * max(lb["h"], c["h"]):
+                kinds[k] = "height"
+            elif c["position"] in ("absolute", "fixed") and dw < 8 and dh < 8:
+                # The position is measured against the nearest ancestor that is not inline (2026-11-10): an inline
+                # parent's box is the union of its fragments and differs between the engines (above) - 45 sites got
+                # layout:position:inline>... although the element was in the same place on the page in both
+                anc = c["parent"]
+                while anc in C and C[anc]["display"] == "inline" and C[anc]["tag"] not in REPLACED:
+                    anc = C[anc]["parent"]
+                if anc not in paired:
+                    continue
+                pl, pc = L[anc], C[anc]
+                if (
+                    abs((lb["x"] - pl["x"]) - (c["x"] - pc["x"])) >= 40
+                    or abs((lb["y"] - pl["y"]) - (c["y"] - pc["y"])) >= 40
+                ):
+                    kinds[k] = "position"
+    with_child = {C[k]["parent"] for k in kinds}
+    # content-visibility: auto (2026-11-10): an element the reference gives a placeholder size explains its parent even
+    # below DEPTH (sections at y 4,400 made a results list 2,600 px taller in Ladybird)
+    with_child |= {
+        C[k]["parent"]
+        for k in paired
+        if C[k]["cva"] and (abs(L[k]["h"] - C[k]["h"]) >= 24 or abs(L[k]["w"] - C[k]["w"]) >= 24)
+    }
+    causes = []
+    for k, kind in kinds.items():
+        c, lb = C[k], L[k]
+        if kind == "cv-auto":
+            continue
+        if kind in ("missing", "extra") and kinds.get(c["parent"]) == kind:
+            continue  # the outermost element that is missing is enough
+        if kind in ("width", "height") and k in with_child:
+            continue  # a child explains the difference
+        parent_display = C[c["parent"]]["display"] if c["parent"] in C else "?"
+        d = (
+            c["tag"]
+            if c["tag"] in REPLACED
+            else c["display"]
+            if c["display"] == lb["display"]
+            else f"{c['display']}≠{lb['display']}"
+        )
+        causes.append(
+            {
+                "sig": f"{kind}:{parent_display}>{d}",
+                "key": k[-160:],
+                "ladybird": [lb["x"], lb["y"], lb["w"], lb["h"]],
+                "reference": [c["x"], c["y"], c["w"], c["h"]],
+                "style": {"display": [lb["display"], c["display"]], "position": c["position"], "float": c["float"]},
+                "area": max(lb["w"] * lb["h"], c["w"] * c["h"]),
+            }
+        )
+    groups: dict = {}
+    for cause in causes:
+        g = groups.setdefault(cause["sig"], {"sig": cause["sig"], "count": 0, "area": 0, "examples": []})
+        g["count"] += 1
+        g["area"] += cause["area"]
+        if len(g["examples"]) < 3:
+            g["examples"].append({k: v for k, v in cause.items() if k not in ("sig", "area")})
+    return {
+        "paired": len(paired),
+        "ladybird": len(L),
+        "reference": len(C),
+        "causes": len(causes),
+        "unstable_in_reference": unstable,
+        "hidden_in_reference": len(hidden),
+        "groups": sorted(groups.values(), key=lambda g: -g["area"])[:12],
+    }

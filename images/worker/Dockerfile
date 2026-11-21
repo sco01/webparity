@@ -3,12 +3,14 @@
 # Built from the repository root: docker build -f images/worker/Dockerfile .
 FROM debian:trixie-slim
 RUN apt-get update \
- && apt-get install -y --no-install-recommends python3 python3-yaml ca-certificates tini procps \
+ && apt-get install -y --no-install-recommends python3 python3-yaml ca-certificates tini procps git \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --create-home --uid 2001 webparity
 COPY src /opt/webparity/src
 COPY known /opt/webparity/known
-ENV PYTHONPATH=/opt/webparity/src WEBPARITY_KNOWN=/opt/webparity/known WEBPARITY_DATA=/data PYTHONUNBUFFERED=1
+# The Ladybird checkout is mounted read-only at /src and owned by another user: let git read it
+ENV PYTHONPATH=/opt/webparity/src WEBPARITY_DATA=/data PYTHONUNBUFFERED=1 \
+    GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0=*
 USER 2001
 WORKDIR /data
 ENTRYPOINT ["tini", "--", "python3", "-m", "webparity"]

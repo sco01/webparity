@@ -1,0 +1,8 @@
+{
+ "detector": "layout",
+ "must": [],
+ "must_not": [
+  "layout:",
+  "layout-differs-a-lot"
+ ]
+}

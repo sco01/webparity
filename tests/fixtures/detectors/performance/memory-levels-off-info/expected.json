@@ -1,0 +1,12 @@
+{
+ "detector": "performance",
+ "must": [
+  "memory-high"
+ ],
+ "must_not": [
+  "memory-leak"
+ ],
+ "categories": {
+  "memory-high": "info"
+ }
+}

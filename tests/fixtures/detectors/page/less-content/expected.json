@@ -1,0 +1,7 @@
+{
+ "detector": "page",
+ "must": [
+  "less-content"
+ ],
+ "must_not": []
+}

@@ -1,0 +1,9 @@
+{
+ "detector": "script_error",
+ "must": [
+  "missing-feature:js:TODO(Run Service Worker is not implemented in LibJS)"
+ ],
+ "must_not": [
+  "script-error:"
+ ]
+}

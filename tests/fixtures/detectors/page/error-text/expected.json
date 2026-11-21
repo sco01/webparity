@@ -1,0 +1,7 @@
+{
+ "detector": "page",
+ "must": [
+  "error-text:something went wrong"
+ ],
+ "must_not": []
+}

@@ -1,0 +1,9 @@
+{
+ "detector": "page",
+ "must": [
+  "cookie-banner-locks-page"
+ ],
+ "must_not": [
+  "shorter-page"
+ ]
+}

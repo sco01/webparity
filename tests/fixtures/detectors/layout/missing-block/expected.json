@@ -1,0 +1,7 @@
+{
+ "detector": "layout",
+ "must": [
+  "layout:missing:block>block"
+ ],
+ "must_not": []
+}

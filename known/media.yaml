@@ -1,0 +1,153 @@
+# SPDX-License-Identifier: BSD-2-Clause
+# Known bug patterns for video, audio and image decoding (source selection, alpha video, JPEG, EXIF orientation).
+
+# 2026-11-12: a media file from a server that advertises Accept-Ranges: bytes but answers 200 to a Range request (a site
+# behind Cloudflare). The check in the reference browser makes one Range request per media source and aborts as soon as the
+# headers have arrived.
+- id: media-server-ignores-range
+  issue: "#14440"
+  fixed: "c3e9547e95c"
+  text: "video/audio from a server that advertises Accept-Ranges but ignores Range"
+  regex: '^network-loop:(mp4|m4v|mov|webm|mkv|mp3|m4a|aac|ogg|oga|wav|flac)$'
+  async: true
+  js: |
+    setTimeout(() => done(false), 10000);
+    const sources = new Set();
+    for (const m of document.querySelectorAll('video, audio')) {
+      if (m.currentSrc) sources.add(m.currentSrc); if (m.src) sources.add(m.src);
+      for (const s of m.querySelectorAll('source')) if (s.src) sources.add(s.src); }
+    const probe = u => { const ac = new AbortController();
+      return fetch(u, {headers: {Range: 'bytes=1000-1999'}, cache: 'no-store', signal: ac.signal}).then(r => {
+        const ar = (r.headers.get('accept-ranges') || '').toLowerCase().includes('bytes'); ac.abort();
+        return r.status === 200 && ar ? u : null; }).catch(() => null); };
+    Promise.all([...sources].filter(u => /^https?:/.test(u)).slice(0, 5).map(probe))
+      .then(x => { x = x.filter(Boolean); done(x.length ? '200 to Range, Accept-Ranges: bytes: ' + x[0].slice(0, 120) : false); });
+
+# 2026-11-15: a paused video without a poster whose video track starts after time 0 (elst with an empty edit) does not
+# show the first frame in Ladybird – on a site the hero video (H.264 from 0.021 s) is invisible and the parent's turquoise
+# background shows. Runs in Ladybird: a visible paused video at time 0, without a poster, readyState >= 2, that drawn on a
+# canvas gives only transparent pixels (videos from other origins cannot be read and do not count).
+- id: paused-video-track-after-zero-no-first-frame
+  issue: "#14767"
+  text: "a paused video whose track starts after 0 does not show the first frame"
+  prefix: ["image-differs", "video"]
+  run_in: ladybird
+  js: |
+    const c = document.createElement('canvas'); c.width = c.height = 4; const g = c.getContext('2d');
+    for (const v of document.querySelectorAll('video')) {
+      const r = v.getBoundingClientRect();
+      if (r.width < 100 || r.height < 60 || v.poster || !v.paused || v.currentTime > 0 || v.readyState < 2) continue;
+      try { g.clearRect(0, 0, 4, 4); g.drawImage(v, 0, 0, 4, 4); const d = g.getImageData(0, 0, 4, 4).data;
+        let a = 0; for (let i = 3; i < d.length; i += 4) a += d[i];
+        if (a === 0) return 'first-frame ' + (v.currentSrc || '').split('/').pop().slice(0, 40) + ' ' + Math.round(r.width) + 'x' + Math.round(r.height);
+      } catch (e) {}
+    }
+    return false;
+
+# 2026-11-15: source selection for <video>/<audio> ignores <source type> (HTMLMediaElement.cpp: FIXME step 6) – on two
+# sites video.js sees at DOMContentLoaded that currentSrc already is the m3u8 source and never hooks up VHS (MSE), so the
+# video stays black. Runs in Ladybird: currentSrc is a <source> whose type canPlayType() answers "" for, and the element
+# has no data (readyState < 2; hvc1 sources that Ladybird plays anyway do not count).
+- id: source-type-ignored-in-source-selection
+  issue: "#14762"
+  fixed: "0d4937e8dd2"
+  text: "<source type> is ignored in source selection – video.js HLS videos stay black"
+  prefix: ["image-differs", "video"]
+  run_in: ladybird
+  js: |
+    for (const v of document.querySelectorAll('video, audio')) {
+      if (!v.currentSrc || v.readyState >= 2) continue;
+      for (const s of v.querySelectorAll('source')) { const t = s.getAttribute('type');
+        if (t && s.src === v.currentSrc && v.canPlayType(t) === '') return 'source-type ' + t.slice(0, 40) + ' rs=' + v.readyState; } }
+    return false;
+
+# 2026-11-16: source selection for <video>/<audio> gets stuck in the waiting state if the <source> that failed is removed
+# and a new one added – SourceElementSelector keeps "pointer" as the failed node, and a removed node has no next sibling.
+# Cookiebot's auto-blocking does exactly that (src → data-cookieblock-src, then back, and the element is replaced by a
+# clone); seen on several sites. Runs in Ladybird: a visible video without a src attribute, readyState 0, networkState
+# NO_SOURCE, no error, and a <source> with a playable type whose src was added after type (attribute order) or that is
+# a Cookiebot clone.
+- id: source-selection-stuck-after-failed-source-replaced
+  issue: "#14829"
+  fixed: "53547a674e7"
+  text: "source selection gets stuck when a failed <source> is replaced (Cookiebot clone)"
+  prefix: ["video"]
+  run_in: ladybird
+  js: |
+    for (const v of document.querySelectorAll('video, audio')) {
+      if (v.hasAttribute('src') || v.readyState !== 0 || v.networkState !== 3 || v.error) continue;
+      const r = v.getBoundingClientRect(); if (v.tagName === 'VIDEO' && (r.width < 20 || r.height < 20)) continue;
+      for (const s of v.querySelectorAll(':scope > source')) {
+        const n = s.getAttributeNames(), src = s.getAttribute('src'), t = s.getAttribute('type');
+        if (!src || (t && v.canPlayType(t) === '')) continue;
+        if (s.CB_isClone || (t && n.indexOf('src') > n.indexOf('type'))) return 'source-pointer ' + src.split('/').pop().slice(0, 40);
+      }
+    }
+    return false;
+
+# 2026-11-16: an MP4 whose hdlr name is not UTF-8 (Windows-1251 "Обработчик видео") is rejected entirely –
+# Streamer::read_null_terminated_string gives "String is not valid UTF-8", MEDIA_ERR_SRC_NOT_SUPPORTED. Runs in Ladybird:
+# a media element has that error.
+- id: mp4-hdlr-name-not-utf8
+  issue: "#14830"
+  fixed: "7a710e05a6a"
+  text: "an MP4 with an hdlr name that is not UTF-8 does not play"
+  prefix: ["video", "image-differs"]
+  run_in: ladybird
+  js: |
+    for (const v of document.querySelectorAll('video, audio'))
+      if (v.error && /not valid UTF-8/.test(v.error.message)) return 'hdlr-utf8 ' + (v.currentSrc || '').split('/').pop().slice(0, 40);
+    return false;
+
+# 2026-11-16: video with an alpha channel is painted fully opaque (black background) – open issue #14664, both VP9 (webm)
+# and HEVC (sources hvc1 for Safari + webm for Chrome; Ladybird picks the hvc1 file). Seen on several sites. Runs in
+# Ladybird: a playable video in the first screen whose source is named something with alpha/transparent, or whose sources
+# are the pair hvc1 + webm (Apple's/Chrome's alpha formats).
+- id: alpha-video-painted-opaque
+  issue: "#14664"
+  text: "video with an alpha channel is painted opaque/black"
+  prefix: ["image-differs", "video"]
+  run_in: ladybird
+  js: |
+    for (const v of document.querySelectorAll('video')) {
+      const r = v.getBoundingClientRect();
+      if (v.readyState < 2 || r.width < 100 || r.height < 100 || r.top > innerHeight) continue;
+      const src = (v.currentSrc || '').split('?')[0].toLowerCase();
+      if (/alpha|transparen/.test(src)) return 'alpha-name ' + src.split('/').pop().slice(0, 40);
+      const t = [...v.querySelectorAll('source')].map(s => (s.getAttribute('type') || '').toLowerCase());
+      if (t.some(x => /hvc1|hevc/.test(x)) && t.some(x => x.startsWith('video/webm'))) return 'hvc1+webm ' + src.split('/').pop().slice(0, 40);
+    }
+    return false;
+
+# 2026-11-15: a progressive JPEG that ends prematurely (no EOI) is not decoded at all in Ladybird – on a site the Divi
+# parallax image (49152 bytes) shows in the other engines, in Ladybird the hero is white. JPEGLoader ignores that
+# jpeg_start_decompress is interrupted (suspension) and calls jpeg_read_scanlines in DSTATE_PRELOAD (203). The error line
+# is only in the log.
+- id: truncated-progressive-jpeg-not-shown
+  issue: "#14758"
+  fixed: "11e02b263b9"
+  text: "a progressive JPEG that ends prematurely is not shown at all"
+  prefix: ["image-differs"]
+  log: 'JPEG error: Improper call to JPEG library in state 203'
+
+# 2026-11-14: Ladybird does not apply the EXIF orientation in JPEG (open tracking issue #2065: JPEG not ticked off) and
+# has no image-orientation. On a site a card photo is 325×230 in the reference browser and 230×325 in Ladybird, the card
+# 459 against 250 high. Runs in the reference browser: a visible image whose rendered size with image-orientation: none is
+# the natural size swapped.
+- id: jpeg-exif-orientation-not-applied
+  issue: "#2065"
+  text: "EXIF orientation in JPEG is not applied (the image is rotated, width and height swap)"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "overflow"]
+  async: true
+  js: |
+    setTimeout(() => done(false), 10000);
+    const imgs = [...document.images].filter(i => { const r = i.getBoundingClientRect(); return i.complete && i.naturalWidth && i.naturalWidth !== i.naturalHeight && r.width >= 50 && r.height >= 50; }).slice(0, 40);
+    if (!imgs.length) return done(false);
+    const box = document.createElement('div'); box.style.cssText = 'position:fixed;left:0;top:0;width:max-content;opacity:0;pointer-events:none;z-index:-1';
+    document.documentElement.appendChild(box);
+    Promise.all(imgs.map(i => new Promise(res => { const n = new Image();
+      n.style.cssText = 'image-orientation:none;width:auto;height:auto;max-width:none;max-height:none;min-width:0;min-height:0;border:0;padding:0;margin:0;display:block';
+      box.appendChild(n);
+      n.onload = () => { const r = n.getBoundingClientRect(); res(Math.round(r.width) === i.naturalHeight && Math.round(r.height) === i.naturalWidth ? i : null); };
+      n.onerror = () => res(null); n.src = i.currentSrc || i.src; })))
+      .then(a => { box.remove(); const t = a.find(Boolean); done(t ? 'exif-rotated ' + t.naturalWidth + '×' + t.naturalHeight + ' ' + (t.currentSrc || t.src).split('/').pop().slice(0, 40) : false); });
