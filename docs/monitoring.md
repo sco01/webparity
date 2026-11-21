@@ -88,7 +88,7 @@ health page and in `webparity_alerts_open`.
 
 ### Channels
 
-Both optional; a failing channel is logged and does not stop the loop.
+All optional; a failing channel is logged and does not stop the loop.
 
 ```yaml
 alerts:
@@ -97,6 +97,10 @@ alerts:
     to: "ops@example.org"
     from: "webparity@example.org"
     smtp: "mail.example.org:25"
+  pushover:
+    credentials: /data/secrets/pushover.conf
+    app: ""        # PUSHOVER_TOKEN_<APP> in the file instead of PUSHOVER_TOKEN, if set
+    priority: 0
   min_visits_per_hour: 150
   probe_endpoint: ""
 ```
@@ -109,3 +113,9 @@ The webhook gets one `POST` per change with JSON:
 
 `state` is `firing` or `resolved`; `time` is local time like every timestamp in the database. Email goes out as one
 plain text mail per evaluation with changes, over plain SMTP (no TLS or login; use a local relay).
+
+Pushover gets one notification per evaluation with changes. The credentials file holds shell-style lines,
+`PUSHOVER_TOKEN=...` and `PUSHOVER_USER=...`, and lives outside the configuration so the configuration can be shared;
+keep it readable only by the user webparity runs as (`chmod 600`). The nightly chain also sends its summary there
+(visits, sites and new candidates in the last 24 hours, the build, the canary and what each step found), at priority
+-1 when the run is ok and 0 when a step failed.

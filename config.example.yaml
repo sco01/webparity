@@ -29,6 +29,7 @@ web:
 alerts:
   webhook: ""                 # POST JSON {rule, state, message, time} here
   email: {to: "", from: "", smtp: ""}   # smtp: host:port of a local relay (no TLS, no login)
+  pushover: {credentials: "", app: "", priority: 0}   # credentials: file with PUSHOVER_TOKEN= and PUSHOVER_USER=
   min_visits_per_hour: 150
   probe_endpoint: ""          # default: the WebDriver endpoints
 

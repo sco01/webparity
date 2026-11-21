@@ -48,6 +48,7 @@ DEFAULTS: dict[str, Any] = {
     "alerts": {
         "webhook": "",  # POST JSON to this URL
         "email": {"to": "", "from": "", "smtp": ""},
+        "pushover": {"credentials": "", "app": "", "priority": 0},  # credentials: file with PUSHOVER_TOKEN/USER
         "min_visits_per_hour": 150,
         "probe_endpoint": "",
     },

@@ -4,6 +4,7 @@ import json
 import socket
 import threading
 import time
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
@@ -305,3 +306,39 @@ def test_run_loop_stops(config, db, monkeypatch):
     monkeypatch.setattr(alerts, "step", fake_step)
     alerts.run_loop(config, db, interval=0.01, stop=stop)
     assert calls == [1]
+
+
+def test_pushover(config, tmp_path, monkeypatch):
+    creds = tmp_path / "pushover.conf"
+    creds.write_text('# comment\nPUSHOVER_TOKEN="tok"\nPUSHOVER_USER=usr\nPUSHOVER_TOKEN_WP=apptok\n')
+    sent = []
+
+    class Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self, n):
+            return b'{"status":1}'
+
+    def fake_urlopen(request, timeout):
+        sent.append((request.full_url, dict(urllib.parse.parse_qsl(request.data.decode()))))
+        return Response()
+
+    monkeypatch.setattr(alerts.urllib.request, "urlopen", fake_urlopen)
+    config["alerts"]["pushover"] = {"credentials": str(creds), "app": "", "priority": 0}
+    alerts.notify(config, [alerts.Alert("low_rate", "12 visits")])
+    url, form = sent[0]
+    assert url == alerts.PUSHOVER_URL
+    assert form["token"] == "tok" and form["user"] == "usr" and "low_rate firing" in form["title"]
+    config["alerts"]["pushover"]["app"] = "wp"
+    alerts.send_text(config, "webparity nightly: ok", "Last 24 h: 1 visits", -1)
+    assert sent[1][1]["token"] == "apptok" and sent[1][1]["priority"] == "-1"
+
+
+def test_pushover_failure_is_not_raised(config, tmp_path):
+    config["alerts"]["pushover"] = {"credentials": str(tmp_path / "missing.conf")}
+    alerts.notify(config, [alerts.Alert("low_rate", "x")])
+    alerts.send_text(config, "t", "m")

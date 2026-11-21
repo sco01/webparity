@@ -199,6 +199,33 @@ STEPS = [
 ]
 
 
+def summary_text(db: DB, summary: dict) -> str:
+    """A few lines for the nightly report: the last day's visits and candidates, and what each step found."""
+    day = db.one(
+        "SELECT COUNT(*) AS visits, COUNT(DISTINCT site) AS sites FROM own_visits"
+        " WHERE started >= strftime('%Y-%m-%d %H:%M:%S', 'now', 'localtime', '-1 day')"
+    )
+    new = db.one(
+        "SELECT COUNT(*) AS n FROM candidates"
+        " WHERE first_seen >= strftime('%Y-%m-%d %H:%M:%S', 'now', 'localtime', '-1 day')"
+    )
+    lines = [f"Last 24 h: {day['visits']} visits, {day['sites']} sites, {new['n']} new candidates."]
+    build = summary.get("build") or {}
+    if build.get("commit"):
+        lines.append(f"Build: {str(build['commit'])[:12]} {build.get('date', '')}".rstrip())
+    canary = summary.get("canary") or {}
+    if "pages" in canary:
+        lines.append(f"Canary: {canary['pages'] - len(canary.get('failed') or {})} of {canary['pages']} pages OK")
+    for step in ("regression", "verify", "watch", "retire", "requeue"):
+        result = summary.get(step)
+        if isinstance(result, dict):
+            short = {k: (len(v) if isinstance(v, (list, dict)) else v) for k, v in result.items() if k != "seconds"}
+            lines.append(f"{step}: " + ", ".join(f"{k} {v}" for k, v in short.items() if k != "traceback")[:200])
+    if summary.get("failed_steps"):
+        lines.append("Failed: " + ", ".join(summary["failed_steps"]))
+    return "\n".join(lines)
+
+
 def run(config: dict, only: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     db = DB.open(config)
@@ -242,4 +269,7 @@ def _run_steps(config: dict, db: DB, s: dict, only: list[str] | None) -> int:
     summary["failed_steps"] = failed
     db.finish_run(run_id, status, summary)
     print(f"nightly: {status}" + (f" ({', '.join(failed)})" if failed else ""))
+    from webparity import alerts
+
+    alerts.send_text(config, f"webparity nightly: {status}", summary_text(db, summary), -1 if status == "ok" else 0)
     return 0 if status == "ok" else 1

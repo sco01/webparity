@@ -14,8 +14,11 @@ Rules (each fires at most one alert at a time):
     is empty) does not answer ``GET /status`` within 5 seconds.
 
 Channels: ``alerts.webhook`` gets a POST with JSON ``{rule, state, message, time}`` (state ``firing`` or
-``resolved``); ``alerts.email`` (``to``, ``from``, ``smtp`` as ``host:port``) gets a plain text mail. Both are
-optional. Notifications go out when an alert starts and when it resolves, never repeated while it keeps firing.
+``resolved``); ``alerts.email`` (``to``, ``from``, ``smtp`` as ``host:port``) gets a plain text mail;
+``alerts.pushover`` sends a Pushover notification, with the application token and user key read from
+``credentials`` (a shell-style file with ``PUSHOVER_TOKEN=`` and ``PUSHOVER_USER=`` lines, kept out of the
+configuration so it can stay private). All are optional.
+Notifications go out when an alert starts and when it resolves, never repeated while it keeps firing.
 """
 
 from __future__ import annotations
@@ -26,6 +29,7 @@ import smtplib
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -263,6 +267,48 @@ def send_email(email: dict, alerts: list[Alert], timeout: float = 30.0) -> None:
         smtp.send_message(message)
 
 
+PUSHOVER_URL = "https://api.pushover.net/1/messages.json"
+
+
+def read_credentials(path: str) -> dict[str, str]:
+    """``KEY=value`` lines of a shell-style file (quotes stripped, comments and other lines ignored)."""
+    out = {}
+    for line in Path(path).read_text().splitlines():
+        key, sep, value = line.strip().partition("=")
+        if sep and key.replace("_", "").isalnum() and not key.startswith("#"):
+            out[key] = value.strip().strip("'\"")
+    return out
+
+
+def send_pushover(settings: dict, title: str, message: str, priority: int | None = None, timeout: float = 20.0) -> None:
+    creds = read_credentials(settings["credentials"])
+    app = str(settings.get("app") or "").upper().replace("-", "_")
+    token = creds.get(f"PUSHOVER_TOKEN_{app}") if app else None
+    body = urllib.parse.urlencode(
+        {
+            "token": token or creds["PUSHOVER_TOKEN"],
+            "user": creds["PUSHOVER_USER"],
+            "title": title[:250],
+            "message": message[:1024] or "(empty)",
+            "priority": str(settings.get("priority", 0) if priority is None else priority),
+        }
+    ).encode()
+    request = urllib.request.Request(PUSHOVER_URL, data=body, method="POST", headers={"User-Agent": "webparity-alerts"})
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        if json.loads(response.read(65536) or b"{}").get("status") != 1:
+            raise RuntimeError("Pushover did not accept the notification")
+
+
+def send_text(config: dict, title: str, message: str, priority: int = -1) -> None:
+    """A plain report (the nightly summary) to the Pushover channel, if configured; failures are logged."""
+    pushover = (config.get("alerts") or {}).get("pushover") or {}
+    if pushover.get("credentials"):
+        try:
+            send_pushover(pushover, title, message, priority)
+        except Exception:
+            log.exception("Pushover report failed")
+
+
 def notify(config: dict, alerts: list[Alert]) -> None:
     """Sends alert changes to every configured channel; a failing channel is logged, not raised."""
     settings = config.get("alerts") or {}
@@ -278,3 +324,10 @@ def notify(config: dict, alerts: list[Alert]) -> None:
             send_email(email, alerts)
         except Exception:
             log.exception("alert email failed")
+    pushover = settings.get("pushover") or {}
+    if pushover.get("credentials") and alerts:
+        states = ", ".join(f"{a.rule} {a.state}" for a in alerts)
+        try:
+            send_pushover(pushover, f"webparity: {states}", "\n".join(a.message for a in alerts))
+        except Exception:
+            log.exception("Pushover alert failed")
