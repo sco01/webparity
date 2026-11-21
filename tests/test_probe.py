@@ -77,3 +77,15 @@ def test_format_results_screenshot_and_log():
         [Result("http://x/", "ladybird", value="1", screenshot="/data/probe/a.png", log=["panicked at y.rs:2"])]
     )
     assert "screenshot /data/probe/a.png" in text and "log: panicked at y.rs:2" in text
+
+
+def test_server_header_and_post(tmp_path: Path):
+    (tmp_path / "data.json").write_text('{"ok": true}')
+    resolved, server = resolve_targets([str(tmp_path / "data.json")], None)
+    try:
+        url = resolved[0][0] + "?header=Content-Encoding%3AUTF-8&header=X-Test%3A1"
+        response = urllib.request.urlopen(urllib.request.Request(url, data=b"x", method="POST"), timeout=5)
+        assert response.headers["Content-Encoding"] == "UTF-8" and response.headers["X-Test"] == "1"
+        assert response.read() == b'{"ok": true}'
+    finally:
+        server.close()

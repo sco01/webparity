@@ -10,9 +10,10 @@ It keeps the semantics of the old probe service, so results can be compared:
 
 Local test cases are served from a directory on ``http://127.0.0.1:PORT/``; ``http://localhost:PORT/`` is the same
 server on a different origin, for cross-origin tests (``--cross-origin`` loads the targets from there). The server
-understands three test helpers: ``?sleep=MS`` delays the response (a slow resource), ``?throttle=KB`` sends the body at
-that many kB per second (a page left while a body streams in), and ``GET /_count?PATH`` answers how many times
-``PATH`` was requested.
+understands four test helpers: ``?sleep=MS`` delays the response (a slow resource), ``?throttle=KB`` sends the body at
+that many kB per second (a page left while a body streams in), ``?header=Name:Value`` (URL-encoded, repeatable) adds
+a response header, and ``GET /_count?PATH`` answers how many times ``PATH`` was requested. POST is answered like GET,
+after reading the request body.
 
 Per target and browser the order is: load, wait, ``before`` script, ``after`` seconds, wheel step, 1 s, script,
 screenshot. Ladybird's log lines about crashes, panics and VERIFY/ASSERT failures during the target are reported
@@ -29,6 +30,7 @@ import os
 import re
 import threading
 import time
+import urllib.parse
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -142,9 +144,22 @@ class _QuietHandler(http.server.SimpleHTTPRequestHandler):
 
     def end_headers(self):
         self.send_header("Cache-Control", "no-store")
+        for name, value in getattr(self, "extra_headers", []):
+            self.send_header(name, value)
         super().end_headers()
 
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length") or 0)
+        if length:
+            self.rfile.read(min(length, 10_000_000))
+        self.do_GET()
+
     def do_GET(self):
+        self.extra_headers = [
+            tuple(part.strip() for part in value.split(":", 1))
+            for key, value in urllib.parse.parse_qsl(self.path.partition("?")[2])
+            if key == "header" and ":" in value
+        ]
         path, _, query = self.path.partition("?")
         if path == "/_count":
             body = json.dumps(self.counts.get(query, 0)).encode()
