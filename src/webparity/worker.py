@@ -41,13 +41,47 @@ def overloaded(config: dict) -> bool:
         return False
 
 
-class Browsers:
-    """The worker's browser handles, started lazily and replaced when broken."""
+class BrowserStartError(RuntimeError):
+    pass
 
-    def __init__(self, config: dict, proxy: Proxy | None):
+
+class Browsers:
+    """The worker's browser handles, started lazily and replaced when broken.
+
+    Ladybird's WebDriver allows one session at a time, so a session left behind by a worker that was killed blocks
+    every new one. The session ids are kept in ``<data>/run/sessions-<worker>.json`` and ended at the next start.
+    """
+
+    def __init__(self, config: dict, proxy: Proxy | None, worker: str = "worker"):
         self.config, self.proxy = config, proxy
         self.handles: dict[str, Handle] = {}
         self.visits = 0
+        self.session_file = Path(config["data_dir"]) / "run" / f"sessions-{worker}.json"
+        self.end_left_over()
+
+    def end_left_over(self) -> None:
+        import json
+
+        from webparity.bidi import webdriver
+
+        try:
+            left = json.loads(self.session_file.read_text())
+        except (OSError, ValueError):
+            return
+        for name, (base, session_id) in left.items():
+            try:
+                webdriver(base, "DELETE", f"/session/{session_id}", timeout=30)
+                log.info("ended a %s session left behind (%s)", name, session_id)
+            except Exception:
+                pass
+        self.session_file.unlink(missing_ok=True)
+
+    def _save_sessions(self) -> None:
+        import json
+
+        sessions = {n: list(h.session.classic) for n, h in self.handles.items() if h.session and h.session.classic}
+        self.session_file.parent.mkdir(parents=True, exist_ok=True)
+        self.session_file.write_text(json.dumps(sessions))
 
     def get(self) -> dict[str, Handle]:
         if self.visits >= RECYCLE_AFTER:
@@ -68,8 +102,9 @@ class Browsers:
                     log.warning("starting %s failed (%s), attempt %d", name, exc, attempt + 1)
                     time.sleep(5 * (attempt + 1))
             else:
-                raise RuntimeError(f"{name} would not start")
+                raise BrowserStartError(f"{name} would not start")
             self.handles[name] = h
+            self._save_sessions()
         return self.handles
 
     def after_visit(self, bundle) -> None:
@@ -83,6 +118,7 @@ class Browsers:
         for h in self.handles.values():
             h.stop()
         self.handles, self.visits = {}, 0
+        self.session_file.unlink(missing_ok=True)
 
 
 def run(config: dict, once: bool = False, worker_name: str | None = None) -> int:
@@ -93,7 +129,7 @@ def run(config: dict, once: bool = False, worker_name: str | None = None) -> int
     worker_name = worker_name or os.environ.get("WEBPARITY_WORKER") or socket.gethostname()
     db = DB.open(config)
     proxy = Proxy(config) if config["proxy"]["record"] else None
-    browsers = Browsers(config, proxy)
+    browsers = Browsers(config, proxy, worker_name)
     stop_file = Path(config["data_dir"]) / "stop-workers"
     stopping = False
 
@@ -136,6 +172,16 @@ def run(config: dict, once: bool = False, worker_name: str | None = None) -> int
             status = "candidate" if errors else ("blocked" if blocked else "clean")
             db.finish_site(site["id"], status, bundle.id)
             log.info("%s %.0f s %s", site["domain"], time.time() - started, ", ".join(errors[:4]) or "clean")
+        except BrowserStartError as exc:
+            # Not the site's fault: give the claim back without using up an attempt, and wait
+            log.error("%s: %s; waiting", site["domain"], exc)
+            browsers.stop()
+            db.x(
+                "UPDATE sites SET status = 'queued', worker = NULL, attempts = MAX(0, attempts - 1) WHERE id = ?",
+                (site["id"],),
+            )
+            time.sleep(120)
+            continue
         except (ProxyError, RuntimeError, OSError) as exc:
             log.error("%s failed: %s", site["domain"], exc)
             browsers.stop()

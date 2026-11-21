@@ -34,7 +34,7 @@ docker run -d --name "$P-ladybird" "${H[@]}" "${NET[@]}" --pid "container:$P-ref
   --cpu-shares 256 --memory 12g -e WEBPARITY_PROXY=127.0.0.1:8790 \
   -v "$LADYBIRD_BUILD:/src/Build/release:ro" -v "$P-proxy-ca:/etc/webparity:ro" -v "$P-ladybird-run:/run/webparity/ladybird" \
   "webparity-ladybird:$TAG" >/dev/null
-docker run -d --name "$P-worker" "${H[@]}" "${NET[@]}" --pid "container:$P-reference" \
+docker run -d --name "$P-worker" --stop-timeout 120 "${H[@]}" "${NET[@]}" --pid "container:$P-reference" \
   -e WEBPARITY_CONFIG=/data/config.yaml -e WEBPARITY_WORKER="$(hostname)-$N" "${BUILD_INFO[@]}" \
   -v "$DATA:/data" -v "$P-proxy-ca:/etc/webparity:ro" -v "$P-ladybird-run:/run/webparity/ladybird:ro" \
   "${SRC[@]}" "webparity-worker:$TAG" worker >/dev/null

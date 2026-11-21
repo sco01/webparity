@@ -83,6 +83,7 @@ services:
     pid: "service:reference"
     depends_on: [reference, ladybird, proxy]
     command: ["worker"]
+    stop_grace_period: 2m  # finish the visit, so Ladybird's single WebDriver session is ended
     environment:
       WEBPARITY_CONFIG: /data/config.yaml
     volumes:
