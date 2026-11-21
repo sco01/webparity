@@ -35,3 +35,5 @@ testpaths = ["tests"]
 [tool.ruff.lint.per-file-ignores]
 # HTML and JavaScript of the canary pages, kept on one line per page part
 "src/webparity/canary.py" = ["E501"]
+# The review page's CSS, one rule per line
+"src/webparity/web/pages.py" = ["E501"]

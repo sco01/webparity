@@ -1,5 +1,10 @@
 # SPDX-License-Identifier: BSD-2-Clause
-"""The HTTP server: routing, security headers, the read-only database connection and the bundle file guard."""
+"""The HTTP server: routing, security headers, the read-only database connection and the bundle file guard.
+
+Everything is read-only except the review page's three actions (save a draft's fields, reset them, mark a draft as
+filed), which are POSTs of JSON to ``/api/review/<id>/<action>`` with the header ``X-Webparity-Review: 1`` and, when
+the browser sends one, an ``Origin`` equal to this server's. A page on another origin cannot send that header without
+a CORS preflight, which this server never answers, so it cannot make these requests."""
 
 from __future__ import annotations
 
@@ -124,9 +129,59 @@ class Handler(BaseHTTPRequestHandler):
         self.do_GET()
 
     def do_POST(self) -> None:
+        m = re.match(r"^/api/review/(\d+)/(fields|reset|mark)$", urllib.parse.urlsplit(self.path).path)
+        if not m:
+            return self.send(405, pages.error_page(405, "This interface is read-only."), extra={"Allow": "GET, HEAD"})
+        return self.review_action(int(m.group(1)), m.group(2))
+
+    def do_PUT(self) -> None:
         self.send(405, pages.error_page(405, "This interface is read-only."), extra={"Allow": "GET, HEAD"})
 
-    do_PUT = do_DELETE = do_PATCH = do_POST
+    do_DELETE = do_PATCH = do_PUT
+
+    def send_json(self, status: int, value) -> None:
+        self.send(status, json.dumps(value, ensure_ascii=False), "application/json; charset=utf-8")
+
+    def review_action(self, issue_id: int, action: str) -> None:
+        from webparity.db import DB
+        from webparity.issues import review
+
+        if self.headers.get("X-Webparity-Review") != "1":
+            return self.send_json(403, {"error": "missing X-Webparity-Review header"})
+        origin = self.headers.get("Origin")
+        if origin and origin != f"http://{self.headers.get('Host', '')}":
+            return self.send_json(403, {"error": "cross-origin request"})
+        if not (self.headers.get("Content-Type") or "").startswith("application/json"):
+            return self.send_json(415, {"error": "JSON only"})
+        length = int(self.headers.get("Content-Length") or 0)
+        if length > 1_000_000:
+            return self.send_json(413, {"error": "too large"})
+        try:
+            body = json.loads(self.rfile.read(length) or b"{}")
+        except ValueError:
+            return self.send_json(400, {"error": "not JSON"})
+        db = DB(self.db_path)
+        try:
+            if action == "fields":
+                fields = body.get("fields")
+                if not isinstance(fields, dict):
+                    return self.send_json(400, {"error": "fields must be an object"})
+                return self.send_json(200, review.save_fields(self.config, db, issue_id, fields))
+            if action == "reset":
+                return self.send_json(200, review.reset(self.config, db, issue_id))
+            number = body.get("number")
+            if number is not None and (not isinstance(number, int) or isinstance(number, bool) or number < 0):
+                return self.send_json(400, {"error": "number must be a positive integer or null"})
+            return self.send_json(200, review.mark(self.config, db, issue_id, number))
+        except KeyError as e:
+            return self.send_json(404, {"error": str(e).strip("'")})
+        except ValueError as e:
+            return self.send_json(409, {"error": str(e)})
+        except sqlite3.Error as e:
+            log.exception("review action failed")
+            return self.send_json(503, {"error": f"database error: {e}"})
+        finally:
+            db.conn.close()
 
     def do_GET(self) -> None:
         parsed = urllib.parse.urlsplit(self.path)
@@ -170,6 +225,21 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200, pages.issues(c, db))
         if path == "/review":
             return self.send(200, pages.review(c, db))
+        if path == "/api/review":
+            from webparity.issues import review
+
+            return self.send_json(200, review.items(c, db))
+        if path == "/static/review.js":
+            js = (Path(__file__).parent / "static" / "review.js").read_bytes()
+            return self.send(200, js, "text/javascript; charset=utf-8")
+        m = re.match(r"^/review/image/(\d+)/([^/]+)$", path)
+        if m:
+            from webparity.issues.review import draft_path
+
+            row = db.one("SELECT draft FROM issues WHERE id = ?", (int(m.group(1)),))
+            draft = draft_path(c, row["draft"]) if row else None
+            folder = draft.parent if draft else None
+            return self.bundle_file(folder, urllib.parse.unquote(m.group(2)))
         m = re.match(r"^/visit/([^/]+)(?:/file/([^/]+))?$", path)
         if m:
             vid = urllib.parse.unquote(m.group(1))

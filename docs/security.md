@@ -17,7 +17,7 @@ the web interface, which is published on the host's `127.0.0.1:8700` only.
 | Firefox BiDi | 127.0.0.1:9222 | same | Firefox refuses WebSocket upgrades with a foreign `Origin` |
 | Proxy | 127.0.0.1:8790 | it is the browsers' proxy | refuses requests to loopback, private, link-local and unspecified addresses |
 | Proxy control | 127.0.0.1:8791 | yes | requires the `X-Webparity-Control` header; a page can't send it cross-origin without a CORS preflight, which the control server never answers |
-| Web interface | 0.0.0.0:8700 in the namespace, host 127.0.0.1:8700 | yes (read-only) | GET/HEAD only; no state changes; no `Access-Control-Allow-Origin`, so a page can't read responses |
+| Web interface | 0.0.0.0:8700 in the namespace, host 127.0.0.1:8700 | yes | GET/HEAD, plus the review page's `POST /api/review/<id>/<action>` (save fields, reset, mark filed), which needs `X-Webparity-Review: 1` and a same-origin `Origin`, so a page elsewhere can't send it without a preflight that is never answered; no `Access-Control-Allow-Origin`, so a page can't read responses |
 
 Known gap: the proxy blocks private addresses by the host name or literal IP in the request. A public name that
 resolves to a private address (DNS rebinding) is not caught. The containers hold no secrets and have no capabilities,

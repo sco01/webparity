@@ -43,6 +43,7 @@ UNPOSTED = re.compile(r"(?i)\butkast\b|\bej postad\b|\bdraft\b|\bnot posted\b")
 STALE = re.compile(r"(?i)\binaktuell\b|\bwithdrawn\b|\bstale\b")
 COMMENT_ROW = re.compile(r"^\| \[#(\d+)\]\([^)]*\) \| \[([^\]]+\.md)\]\([^)]*\)(.*)$")
 POSTED = re.compile(r"(?<!ej )(?<!not )\b(posted|postad)\b[^0-9]*(\d{4}-\d{2}-\d{2})?", re.I)
+IMAGE_FILE = re.compile(r"\b([\w.-]+\.(?:png|jpe?g|webp))\b", re.I)
 TEST_CASE_MENTION = re.compile(r"\btestfall/[\w./-]+")
 
 
@@ -172,20 +173,26 @@ def _import_queued(config, db, gallery, cases_root, draft_name, kind, comment_on
     meta = {"kind": kind, "test_case": test_case or ""}
     if comment_on:
         meta["comment_on"] = comment_on
-    draft = str(_copy_draft(config, gallery_draft, meta))
+    target = _copy_draft(config, gallery_draft, meta)
+    draft = str(target)
     queued.add(draft)
+    for image in sorted(set(IMAGE_FILE.findall(text))):  # screenshots, for the review page
+        source = gallery / "issues" / image
+        dest = target.parent / image
+        if source.is_file() and (not dest.exists() or dest.stat().st_mtime < source.stat().st_mtime):
+            shutil.copy2(source, target.parent / image)
     title = draft_title(text) or (f"Comment on #{comment_on}" if comment_on else Path(draft_name).stem)
     row = db.one("SELECT id, state FROM issues WHERE draft = ?", (draft,))
     if row is None:
         db.x(
-            "INSERT INTO issues (draft, title, kind, state, test_case, note, created)"
-            " VALUES (?, ?, ?, 'draft', ?, ?, ?)",
-            (draft, title, kind, test_case, note, now()),
+            "INSERT INTO issues (draft, title, kind, state, test_case, note, target, created)"
+            " VALUES (?, ?, ?, 'draft', ?, ?, ?, ?)",
+            (draft, title, kind, test_case, note, comment_on, now()),
         )
     elif row["state"] in ("draft", "withdrawn"):
         db.x(
-            "UPDATE issues SET title = ?, kind = ?, state = 'draft', test_case = ?, note = ? WHERE id = ?",
-            (title, kind, test_case, note, row["id"]),
+            "UPDATE issues SET title = ?, kind = ?, state = 'draft', test_case = ?, note = ?, target = ? WHERE id = ?",
+            (title, kind, test_case, note, comment_on, row["id"]),
         )
     counts["queued"] += 1
 

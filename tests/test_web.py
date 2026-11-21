@@ -220,11 +220,15 @@ def test_issues_and_review(setup):
     assert "TypeError on load" in text and "issues/5678" in text
     status, _, body = get(setup["base"], "/review")
     text = body.decode()
-    assert status == 200
-    assert "2 drafts waiting" in text
-    assert "# Draft title" in text
-    assert "TOPSECRET" not in text  # the draft outside data/drafts is not shown
-    assert_escaped(body)
+    assert status == 200 and 'src="/static/review.js"' in text and 'data-repository="LadybirdBrowser/ladybird"' in text
+    status, headers, body = get(setup["base"], "/static/review.js")
+    assert status == 200 and headers["Content-Type"].startswith("text/javascript") and b"X-Webparity-Review" in body
+    status, headers, body = get(setup["base"], "/api/review")
+    items = json.loads(body)
+    assert status == 200 and headers["Content-Type"].startswith("application/json")
+    assert [i["title"] for i in items] == ["TypeError on load", "Escaping draft"]
+    assert items[0]["found"] and not items[1]["found"]
+    assert "TOPSECRET" not in body.decode()  # the draft outside data/drafts is never read
 
 
 def test_metrics_endpoint(setup):
@@ -275,3 +279,81 @@ def test_listens_where_config_says(tmp_path):
         assert server.server_address[0] == "127.0.0.1"
     finally:
         server.server_close()
+
+
+def post(base, path, body, headers=None):
+    data = json.dumps(body).encode()
+    default = {"Content-Type": "application/json", "X-Webparity-Review": "1"}
+    request = urllib.request.Request(base + path, data=data, method="POST", headers={**default, **(headers or {})})
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            return response.status, json.loads(response.read())
+    except urllib.error.HTTPError as e:
+        return e.code, json.loads(e.read() or b"{}")
+
+
+DRAFT = """NOTE (not for the issue): internal background.
+
+---
+
+## Title
+A title
+
+## Summary
+What happens.
+
+## Steps to reproduce
+1. Open it.
+
+## Screenshots or screen recordings
+case-lb.png (Ladybird) case-cr.png (Chromium)
+
+## Unknown heading
+x
+"""
+
+
+def test_review_actions(setup):
+    base, db, tmp = setup["base"], setup["db"], setup["tmp"]
+    (tmp / "drafts" / "case.md").write_text(DRAFT)
+    (tmp / "drafts" / "case-lb.png").write_bytes(PNG)
+    db.x(
+        "INSERT INTO issues (draft, title, kind, state, note, created)"
+        " VALUES (?, 'A title', 'issue', 'draft', 'gallery queue #1, class 3: x', '2026-11-21')",
+        (str(tmp / "drafts" / "case.md"),),
+    )
+    issue_id = db.one("SELECT id FROM issues WHERE title = 'A title'")["id"]
+    items = json.loads(get(base, "/api/review")[2])
+    case = next(i for i in items if i["id"] == issue_id)
+    assert items[0]["id"] == issue_id  # queue position first
+    assert case["note"] == "internal background." and case["unknown_headings"] == ["Unknown heading"]
+    assert case["fields"]["screenshots"] == "Ladybird:\n\nChromium:"
+    assert [(x["file"], x["available"]) for x in case["images"]] == [("case-lb.png", True), ("case-cr.png", False)]
+    status, headers, body = get(base, f"/review/image/{issue_id}/case-lb.png")
+    assert status == 200 and body == PNG
+    assert get(base, f"/review/image/{issue_id}/..%2Fsecret.txt")[0] == 404
+
+    # the guards: header, origin, JSON
+    assert post(base, f"/api/review/{issue_id}/reset", {}, {"X-Webparity-Review": "0"})[0] == 403
+    assert post(base, f"/api/review/{issue_id}/reset", {}, {"Origin": "https://evil.example"})[0] == 403
+    assert post(base, f"/api/review/{issue_id}/reset", {}, {"Content-Type": "text/plain"})[0] == 415
+    assert post(base, "/api/review/99999/reset", {})[0] == 404
+
+    status, updated = post(base, f"/api/review/{issue_id}/fields", {"fields": {"summary": "Edited."}})
+    assert status == 200 and updated["changed"] and updated["fields"]["summary"] == "Edited."
+    assert updated["original"]["summary"] == "What happens."
+    assert post(base, f"/api/review/{issue_id}/fields", {"fields": {"nope": "x"}})[0] == 409
+    status, updated = post(base, f"/api/review/{issue_id}/fields", {"fields": {"summary": "What happens."}})
+    assert not updated["changed"] and db.one("SELECT fields FROM issues WHERE id = ?", (issue_id,))[0] is None
+    post(base, f"/api/review/{issue_id}/fields", {"fields": {"title": "New title"}})
+    status, updated = post(base, f"/api/review/{issue_id}/reset", {})
+    assert updated["fields"]["title"] == "A title" and not updated["changed"]
+
+    assert post(base, f"/api/review/{issue_id}/mark", {"number": 5678})[0] == 409  # already another issue's
+    status, updated = post(base, f"/api/review/{issue_id}/mark", {"number": 9001})
+    assert status == 200 and updated["state"] == "filed" and updated["number"] == 9001
+    assert issue_id in [i["id"] for i in json.loads(get(base, "/api/review")[2])]  # still shown, can be undone
+    status, updated = post(base, f"/api/review/{issue_id}/mark", {"number": None})
+    assert updated["state"] == "draft" and updated["number"] is None
+    assert post(base, f"/api/review/{issue_id}/mark", {"number": "9001"})[0] == 400
+    assert DRAFT == (tmp / "drafts" / "case.md").read_text()  # the draft file is never written

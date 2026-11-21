@@ -631,38 +631,68 @@ def _signatures(value: str | None) -> list[str]:
     return [s.strip() for s in re.split(r"[\n,]", value) if s.strip()]
 
 
-def draft_file(config: dict, draft: str | None) -> Path | None:
-    """The draft's markdown file, only if it is a file under ``data_dir/drafts``."""
-    if not draft:
-        return None
-    root = (Path(config["data_dir"]) / "drafts").resolve()
-    p = Path(draft)
-    p = (p if p.is_absolute() else root / p).resolve()
-    if not p.is_relative_to(root) or not p.is_file():
-        return None
-    return p
+REVIEW_CSS = """
+main.review{max-width:1400px}
+.review-wrap{display:grid;grid-template-columns:280px minmax(0,1fr);gap:22px}
+@media (max-width:860px){.review-wrap{grid-template-columns:minmax(0,1fr)}.queue{position:static!important;max-height:none!important}}
+.queue{position:sticky;top:12px;align-self:start;max-height:calc(100vh - 24px);overflow:auto}
+.queue h1{font-size:1.1em;margin:.2em 0}.queue p{margin:0 0 10px}
+.queue ol{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.queue button{width:100%;text-align:left;display:grid;grid-template-columns:24px minmax(0,1fr);gap:8px;align-items:start;
+border:1px solid transparent;background:none;color:var(--fg);font-size:.9em;padding:7px 8px;border-radius:6px;cursor:pointer}
+.queue button:hover{background:var(--card)}.queue button[aria-current=true]{background:var(--card);border-color:var(--line)}
+.queue .nr{font-family:ui-monospace,Menlo,monospace;color:var(--muted);font-size:.85em;padding-top:2px}
+.queue .name{overflow-wrap:anywhere}
+.chip{display:inline-block;font-size:.75em;font-weight:500;padding:1px 7px;border-radius:999px;background:var(--line);color:var(--muted);margin-top:3px}
+.chip.changed{color:var(--warn)}.chip.done{color:var(--good)}
+#view{display:grid;gap:16px;align-content:start;min-width:0}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px 18px;min-width:0}
+.top{display:grid;gap:10px}
+.meta,.actions,.post{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.meta{color:var(--muted);font-size:.9em}
+.button{display:inline-flex;align-items:center;font-size:.92em;font-weight:500;padding:6px 12px;border-radius:6px;
+border:1px solid var(--line);background:var(--bg);color:var(--fg);cursor:pointer;text-decoration:none}
+.button:hover{border-color:var(--muted);text-decoration:none}
+.button.primary{background:var(--accent);border-color:var(--accent);color:var(--bg)}
+.button.small{font-size:.82em;padding:2px 8px;font-weight:400}
+.button[disabled]{opacity:.45;cursor:default}
+.note{font-size:.88em;color:var(--muted);margin:0}.note.warn{color:var(--warn)}
+.images{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media (max-width:700px){.images{grid-template-columns:minmax(0,1fr)}}
+.images figure{margin:0;display:grid;gap:6px;min-width:0}
+.images img{width:100%;border:1px solid var(--line);border-radius:4px;cursor:zoom-in}
+.images figcaption{font-size:.85em;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px;justify-content:space-between}
+details.background summary{cursor:pointer;font-weight:500}
+details.background pre{margin:10px 0 0;color:var(--muted)}
+.fields{display:grid;gap:14px}
+.f{display:grid;gap:4px;min-width:0}
+.f .row{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.f label{font-weight:600;font-size:.92em}
+.f .id{font-family:ui-monospace,Menlo,monospace;font-size:.75em;color:var(--muted)}
+.f input,.f textarea{width:100%;font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:7px 9px}
+.f textarea{resize:vertical;min-height:60px}
+.f .code{font-family:ui-monospace,Menlo,monospace;font-size:.85em}
+.f.title input{font-size:1.1em;font-weight:600}
+.narrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}
+.post input{width:100px}
+.empty{color:var(--muted);padding:30px 0}
+.zoom{position:fixed;inset:0;background:rgba(10,12,16,.85);display:grid;place-items:center;z-index:20;padding:16px;cursor:zoom-out}
+.zoom img{max-width:100%;max-height:100%}
+[hidden]{display:none!important}
+"""
 
 
 def review(config: dict, db) -> str:
-    rows = db.q("SELECT * FROM issues WHERE state = 'draft' ORDER BY created")
-    out = ["<h1>Review</h1>", f'<p class="muted">{len(rows)} drafts waiting for review.</p>']
-    for r in rows:
-        out.append(f"<h2>{esc(r['title'] or r['draft'] or r['id'])}</h2>")
-        meta = [f"kind {esc(r['kind'])}", f"created {esc(r['created'])}"]
-        if r["test_case"]:
-            meta.append(f'test case <span class="mono">{esc(r["test_case"])}</span>')
-        out.append(f'<p class="muted">{" · ".join(meta)}</p>')
-        sigs = _signatures(r["signatures"])
-        if sigs:
-            out.append(
-                "<p>"
-                + " ".join(f'<a class="mono" href="{url_path("candidates", s)}">{esc(s)}</a>' for s in sigs)
-                + "</p>"
-            )
-        p = draft_file(config, r["draft"])
-        if p is not None:
-            text = p.read_text(encoding="utf-8", errors="replace")
-            out.append(f"<pre>{esc(text[:200_000])}</pre>")
-        elif r["draft"]:
-            out.append(f'<p class="muted">Draft file not found under data/drafts: {esc(r["draft"])}</p>')
-    return page("Review", "".join(out), "/review")
+    """The review page's shell; static/review.js loads the drafts from /api/review and does the rest."""
+    repo = (config.get("github") or {}).get("repository") or "LadybirdBrowser/ladybird"
+    if not re.match(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", repo):
+        repo = "LadybirdBrowser/ladybird"
+    body = (
+        f'<style>{REVIEW_CSS}</style><div id="review" class="review-wrap" data-repository="{esc(repo)}">'
+        '<nav class="queue" aria-label="Filing queue"><h1>Review</h1>'
+        '<p class="note" id="queue-summary">Loading the drafts …</p><ol id="queue"></ol></nav>'
+        '<div id="view"><noscript><p class="empty">The review page needs JavaScript.</p></noscript></div></div>'
+        '<div class="zoom" id="zoom" hidden><img id="zoom-img" alt=""></div>'
+        '<script src="/static/review.js" defer></script>'
+    )
+    return page("Review", body, "/review").replace("<main>", '<main class="review">', 1)

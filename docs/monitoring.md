@@ -14,9 +14,12 @@ It listens on `web.listen` (default `127.0.0.1:8700`). Keep it on localhost and 
 authentication in front of it if it must be reachable from elsewhere: the pages show URLs and console output from
 the sites visited.
 
-The interface is read-only: it opens the database with `mode=ro` per request, answers `POST` and other methods with
-`405`, and has no forms that change state (the filter forms use `GET`). Pages are server-rendered HTML without
-JavaScript, follow the light or dark system setting and work on a phone.
+The interface is read-only except the review page: it opens the database with `mode=ro` per request, answers `POST`
+and other methods with `405`, and has no forms that change state (the filter forms use `GET`). Pages are
+server-rendered HTML, follow the light or dark system setting and work on a phone. The review page is the exception
+(see [issues.md](issues.md#2-review)): its script, served from `/static/review.js`, saves edits of a draft's form
+fields and marks drafts as filed through `POST /api/review/<id>/<action>`, which requires the header
+`X-Webparity-Review: 1` and a same-origin `Origin`, so other pages in the browser can't make those requests.
 
 | Path | What |
 |---|---|
@@ -27,7 +30,7 @@ JavaScript, follow the light or dark system setting and work on a phone.
 | `/visit/<id>` | One visit: URL, timings, findings, screenshots per browser, console errors from `events.jsonl`, files |
 | `/visit/<id>/file/<name>` | A file from the visit bundle |
 | `/issues` | Drafts, filed, closed and verified issues |
-| `/review` | Drafts waiting for review, with the draft markdown when it lives under `data_dir/drafts` |
+| `/review` | Drafts waiting to be filed, one at a time: the bug report form's fields (editable), the GitHub link, screenshots, "filed as #N" |
 | `/metrics` | Prometheus text format |
 | `/healthz` | JSON `{"ok": true, "visits_last_hour": 123, "db": "ok"}`; status 503 when the database cannot be read |
 

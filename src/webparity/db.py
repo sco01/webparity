@@ -155,6 +155,11 @@ MIGRATIONS: list[str] = [
     """
     CREATE VIEW own_visits AS SELECT * FROM visits WHERE source = 'webparity'
     """,
+    # 4: the review page's edits of a draft's form fields (JSON), and its "filed as #N" mark (JSON)
+    """
+    ALTER TABLE issues ADD COLUMN fields TEXT;
+    ALTER TABLE issues ADD COLUMN review_mark TEXT;
+    """,
 ]
 
 

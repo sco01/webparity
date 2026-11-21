@@ -51,6 +51,20 @@ is not in English (å/ä/ö), and personal details such as email addresses, loca
 does not mean the draft is good; it means a person can now read it critically. Run the test case yourself in Ladybird,
 Chromium and Firefox, and search the tracker for an existing issue before filing.
 
+The web interface's review page (`/review`) shows the drafts waiting to be filed, in queue order, one at a time:
+
+- every field of Ladybird's bug report form, in the form's order, editable; edits are saved in the database
+  (`issues.fields`), never in the draft file, and "Reset" returns to the file's text;
+- "Copy the GitHub link" / "Open the form on GitHub": the form (`bug_report.yml`) prefilled with the fields as query
+  parameters. GitHub resets prefilled fields when you edit them, so make every change on the review page first, and
+  open each draft in a new tab (GitHub remembers the form per tab). The Screenshots field is left out of the link: its
+  field holds one caption line per image to paste above the dragged-in images. A test case too long for the link is
+  left out with a notice, to paste from its field;
+- the screenshots named in the draft (`name.png (caption)`), to copy or save and drag into the form;
+- the draft's internal note, folded, for background;
+- "Filed as #N" (a comment: "Mark as posted"), which records the number and can be undone until the draft is
+  registered.
+
 ## 3. A person files it
 
 The reviewer files the issue on GitHub from their own account, using the draft as a starting point and changing whatever
