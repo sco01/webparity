@@ -48,7 +48,12 @@ docker compose run --rm worker candidates
 ## 5. Investigate
 
 - `webparity visit URL` visits one site and prints its findings.
-- `webparity probe page.html -j "expression"` runs a script in all browsers.
+- `webparity probe page.html -j "expression"` runs a script in all browsers. `--before SCRIPT` and `--after S` run
+  something first, `--wheel [SELECTOR]` sends one wheel step, `--screenshot` saves a screenshot per browser, and
+  `--cross-origin` loads local test cases from `localhost` instead of `127.0.0.1`. Ladybird's crash, panic and
+  VERIFY lines during each target are printed with it. The workers keep their browsers busy (Ladybird's WebDriver
+  allows one session at a time), so for probes start a stack without a worker:
+  `NO_WORKER=1 tools/docker-run-stack.sh up probe`, and run the probe in its network.
 - `webparity replay VISIT_ID` replays a recorded visit offline and checks that the page is the same.
 - `webparity reduce VISIT_OR_FILE -o case.html --differs -j "expression"` reduces a page to a small test case.
 - `webparity draft SIGNATURE` writes an issue draft; a person reviews it and files it; `webparity register DRAFT N`

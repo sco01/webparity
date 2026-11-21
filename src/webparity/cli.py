@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from webparity import __version__
 
@@ -24,9 +25,26 @@ def _db(cfg):
 
 # --- collection -----------------------------------------------------------------------------------------------------
 def cmd_probe(args) -> int:
-    from webparity.probe import format_results, probe
+    from webparity.probe import Steps, format_results, probe
 
     script = open(args.js_file, encoding="utf-8").read() if args.js_file else args.js
+    if script == "-":
+        script = sys.stdin.read()
+    before = open(args.before_file, encoding="utf-8").read() if args.before_file else args.before
+    if before == "-":
+        before = sys.stdin.read()
+    if args.wheel and ("/" in args.wheel or args.wheel.startswith("@")):  # a target, not a selector
+        args.targets.insert(0, args.wheel)
+        args.wheel = ""
+    cfg = _config(args)
+    steps = Steps(
+        before=before,
+        after=args.after or 0,
+        wheel=args.wheel is not None,
+        wheel_target=args.wheel or None,
+        wheel_dy=args.dy,
+        screenshot_dir=str(Path(cfg["data_dir"]) / "probe") if args.screenshot else None,
+    )
     proxy = None
     if args.record or args.replay:
         from webparity.proxy import Proxy
@@ -43,6 +61,9 @@ def cmd_probe(args) -> int:
             fresh=args.fresh,
             root=args.root,
             proxy=proxy.chromium_settings() if proxy else None,
+            steps=steps,
+            cross_origin=args.cross_origin,
+            ladybird_log=cfg["ladybird"].get("log"),
         )
     finally:
         if proxy is not None:
@@ -443,6 +464,20 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--fresh", action="store_true", help="a new browser session for every target")
     p.add_argument("--root", help="the directory served for local test cases (default: their common parent)")
     p.add_argument("--json", action="store_true", help="print the results as JSON")
+    g2 = p.add_mutually_exclusive_group()
+    g2.add_argument(
+        "--before", help="a script run after loading, before the wheel step and the measurement ('-': stdin)"
+    )
+    g2.add_argument("--before-file", help="read the before script from a file")
+    p.add_argument("--after", type=float, help="seconds to wait after the before script")
+    p.add_argument(
+        "--wheel", nargs="?", const="", metavar="SELECTOR", help="one wheel step over the element, else mid-viewport"
+    )
+    p.add_argument("--dy", type=int, default=400, help="the wheel step's deltaY (default 400)")
+    p.add_argument("--screenshot", action="store_true", help="save a screenshot per browser in <data>/probe/")
+    p.add_argument(
+        "--cross-origin", action="store_true", help="load local test cases from localhost instead of 127.0.0.1"
+    )
     g = p.add_mutually_exclusive_group()
     g.add_argument("--record", metavar="NAME", help="record the traffic into <data>/recordings/NAME.warc.gz")
     g.add_argument("--replay", metavar="NAME", help="answer only from that recording, offline")

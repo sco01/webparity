@@ -3,6 +3,7 @@
 # The same stack as compose.yaml with plain `docker run`, for hosts without the Compose plugin.
 #   tools/docker-run-stack.sh up N      start stack N (N=1 also starts the web interface and the alerts)
 #   tools/docker-run-stack.sh down N    stop and remove stack N
+#   NO_WORKER=1 tools/docker-run-stack.sh up probe   a stack without a worker, whose browsers are free for webparity probe
 # Environment: LADYBIRD_BUILD (required), LADYBIRD_SOURCE (optional checkout containing it), WEBPARITY_DATA (default ./data), WEBPARITY_BUILD_INFO (optional file),
 # WEBPARITY_WEB_PORT (default 8700), TAG (image tag, default dev).
 set -euo pipefail
@@ -34,7 +35,7 @@ docker run -d --name "$P-ladybird" "${H[@]}" "${NET[@]}" --pid "container:$P-ref
   --cpu-shares 256 --memory 12g -e WEBPARITY_PROXY=127.0.0.1:8790 \
   -v "$LADYBIRD_BUILD:/src/Build/release:ro" -v "$P-proxy-ca:/etc/webparity:ro" -v "$P-ladybird-run:/run/webparity/ladybird" \
   "webparity-ladybird:$TAG" >/dev/null
-docker run -d --name "$P-worker" --stop-timeout 120 "${H[@]}" "${NET[@]}" --pid "container:$P-reference" \
+[ -z "${NO_WORKER:-}" ] && docker run -d --name "$P-worker" --stop-timeout 120 "${H[@]}" "${NET[@]}" --pid "container:$P-reference" \
   -e WEBPARITY_CONFIG=/data/config.yaml -e WEBPARITY_WORKER="$(hostname)-$N" "${BUILD_INFO[@]}" \
   -v "$DATA:/data" -v "$P-proxy-ca:/etc/webparity:ro" -v "$P-ladybird-run:/run/webparity/ladybird:ro" \
   "${SRC[@]}" "webparity-worker:$TAG" worker >/dev/null
