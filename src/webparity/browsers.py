@@ -146,13 +146,14 @@ class Handle:
         """Runs statements with their own ``return``, like classic WebDriver's execute; JSON comes back parsed."""
         import json
 
-        raw = self.call(wrap_script(body, False), list(args) or None, timeout=timeout)
-        if isinstance(raw, str) and raw[:1] in "[{":
-            try:
-                return json.loads(raw)
-            except ValueError:
-                return raw
-        return raw
+        function = (
+            "async function () {\n"
+            f"  const value = await (async () => {{\n{body}\n}}).apply(this, arguments);\n"
+            "  return value === undefined ? 'null' : JSON.stringify(value);\n"
+            "}"
+        )
+        raw = self.call(function, list(args) or None, timeout=timeout)
+        return json.loads(raw) if isinstance(raw, str) else raw
 
     def screenshot(self) -> bytes:
         data = self.session.client.command("browsingContext.captureScreenshot", {"context": self.context}, timeout=30)

@@ -255,7 +255,8 @@ def cmd_canary(args) -> int:
             errors = [f["signature"] for f in bundle.data["findings"] if f["category"] == "error"]
             ok = all(any(s.startswith(x) for s in sigs) for x in e["expect"]) if e["expect"] else not errors
             bad += not ok
-            print(f"  {'OK  ' if ok else 'FAIL'} {e['name']:18} expects {e['expect'] or 'nothing':30} got {sigs[:6]}")
+            expects = str(e["expect"] or "nothing")
+            print(f"  {'OK  ' if ok else 'FAIL'} {e['name']:18} expects {expects:30} got {sigs[:6]}")
             for name, h in list(handles.items()):
                 if not h.alive():
                     h.stop()
