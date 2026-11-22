@@ -92,6 +92,10 @@ def test_blocked_and_error_page():
     assert not measure.blocked({"title": "Shop", "text": 5000}, "access denied " + "x" * 500)
     # 2026-11-15: an unambiguous wall phrase counts on a page with a lot of text
     assert measure.blocked({"title": "Shop", "text": 5000}, "Welcome. Enter the characters you see in the image.")
+    datadome = "<html><head><title>shop.example</title></head><body><script>var dd={'host':'geo.captcha-delivery.com'}"
+    assert measure.blocked({"title": "shop.example", "text": 0}, "", datadome)
+    tag = '<script src="https://js.datadome.co/tags.js"></script>'
+    assert not measure.blocked({"title": "Shop", "text": 5000}, "x" * 5000, tag + "geo.captcha-delivery.com")
     assert measure.error_page({"title": "", "text": 10}, {})
     assert measure.error_page({"title": "Page not found", "text": 900}, {})
     assert measure.error_page({"title": "x", "text": 900, "url": "chrome-error://chromewebdata/"}, {})

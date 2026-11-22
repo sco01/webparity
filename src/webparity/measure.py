@@ -230,12 +230,21 @@ def response_times(h) -> dict:
     return out
 
 
-def blocked(probe: dict, body_text: str) -> bool:
+# 2026-11-22: DataDome's interstitial (to.skruvat.se in Ladybird); normal pages load DataDome from js.datadome.co
+BOT_WALL_MARKUP = re.compile(r"(?:geo|ct)\.captcha-delivery\.com", re.I)
+
+
+def blocked(probe: dict, body_text: str, dom: str = "") -> bool:
     """A bot wall: in the title, or in the text of an almost empty page (an "Access Denied: error code ..." page), or an
-    unambiguous wall phrase in the first 3,000 characters."""
-    short = body_text[:400] if (probe.get("text") or 0) < 400 else ""
+    unambiguous wall phrase in the first 3,000 characters, or an almost empty page whose markup loads a wall (DataDome's
+    page is only a script and an iframe, with the site's name as the title)."""
+    almost_empty = (probe.get("text") or 0) < 400
+    short = body_text[:400] if almost_empty else ""
     return bool(
-        BOT_WALL.search(probe.get("title") or "") or BOT_WALL.search(short) or BOT_WALL_STRONG.search(body_text or "")
+        BOT_WALL.search(probe.get("title") or "")
+        or BOT_WALL.search(short)
+        or BOT_WALL_STRONG.search(body_text or "")
+        or (almost_empty and BOT_WALL_MARKUP.search(dom[:20000]))
     )
 
 
@@ -326,7 +335,7 @@ def probe(h, ctx) -> dict:
         ctx.save("dom.html.gz", dom)
     body = _try(out, "", lambda: h.js(js.BODY_TEXT, timeout=15), "body_text_error") or ""
     load_result = ctx.measurements().get("load") or {}
-    out["blocked"] = blocked(out, body if isinstance(body, str) else "")
+    out["blocked"] = blocked(out, body if isinstance(body, str) else "", dom if isinstance(dom, str) else "")
     if ctx.browser != "ladybird" and load_result.get("error") and not out.get("elements"):
         out["blocked"] = True
     out["error_page"] = error_page(out, load_result)
