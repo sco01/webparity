@@ -8,6 +8,7 @@ Signatures (error):
   ends with clearly less (when Ladybird loaded the images before scrolling it doesn't grow; 2026-11-08).
 - ``scroll-locked``: one wheel step scrolled the reference at least 100 px and Ladybird less than 10 px (#14254). The
   reset before the test is instant, not smooth (2026-11-21: with scroll-behavior: smooth the reset was still animating).
+  The wheel test runs before the scroll test, on the page as loaded (2026-11-22).
 """
 
 from __future__ import annotations

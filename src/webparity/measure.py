@@ -578,8 +578,11 @@ def interact(h, ctx) -> dict:
             css = {"error": _short(exc)} if ctx.browser == "ladybird" else None
         if css is not None:
             out["css"] = css
-    out["scroll"] = scroll(h)
+    # The wheel test first, on the page as loaded (2026-11-22): after the scroll test's scrollBy/scrollTo steps
+    # Ladybird's wheel scrolled 0 px on some pages (se.recoma.com 3 of 4, j3m.se) - a Ladybird bug of its own, but it
+    # made scroll-locked 14 % of all visits instead of measuring what a visitor's first wheel step does.
     out["wheel"] = wheel(h)
+    out["scroll"] = scroll(h)
     # Before the menu test - a menu that opened only in one browser would otherwise give differences
     out["mobile"] = mobile(h, ctx)
     out["menu"] = menu(h)
