@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import importlib
 import pkgutil
+import re
 import traceback
+from urllib.parse import urlsplit
 
 from webparity.findings import ERROR, Finding
 
@@ -72,11 +74,37 @@ def analyze(bundle, only: list[str] | None = None, known=None) -> list[Finding]:
 PROXY_KNOWN = "proxy upstream errors (the visit is repeated)"
 
 
+# What the proxy reports that isn't the server's or the network's doing: the browser cancelled the request (a
+# navigation, an aborted fetch), or the name doesn't resolve (an old tracker host; the same in both browsers)
+NOT_UPSTREAM = re.compile(
+    r"stream reset by client|client disconnected|name resolution|no address associated|name or service not known|"
+    r"nodename nor servname|errno -[235]\b",
+    re.I,
+)
+
+
+def upstream_errors(bundle) -> list[dict]:
+    """The proxy's own 502s that came from the server or the network (closed or reset connections, failed connects,
+    timeouts) and can make the browsers differ: GET requests (not beacons and telemetry POSTs), to hosts that didn't
+    fail in both browsers."""
+    errors = [
+        e
+        for e in bundle.data.get("proxy_upstream_errors") or []
+        if not NOT_UPSTREAM.search(e.get("error") or "") and (e.get("method") or "GET") == "GET"
+    ]
+    browsers_per_host: dict[str, set[bool]] = {}
+    for e in errors:
+        browsers_per_host.setdefault(urlsplit(e.get("url") or "").hostname or "", set()).add(
+            "Ladybird" in (e.get("user_agent") or "")
+        )
+    return [e for e in errors if len(browsers_per_host[urlsplit(e.get("url") or "").hostname or ""]) == 1]
+
+
 def proxy_errors(bundle, findings: list[Finding]) -> None:
     """When the proxy answered requests with its own 502 (the server closed or reset the connection), a browser lost
     resources the other one got, so the visit's error findings aren't evidence: they are marked, and the worker queues
     the site again."""
-    errors = bundle.data.get("proxy_upstream_errors") or []
+    errors = upstream_errors(bundle)
     if not errors:
         return
     for f in findings:
@@ -97,4 +125,4 @@ def proxy_errors(bundle, findings: list[Finding]) -> None:
     )
 
 
-__all__ = ["Detector", "Finding", "ERROR", "PROXY_KNOWN", "all_detectors", "analyze"]
+__all__ = ["Detector", "Finding", "ERROR", "PROXY_KNOWN", "all_detectors", "analyze", "upstream_errors"]

@@ -131,6 +131,7 @@ class Recorder:
             if self.mode == "record" and len(self.upstream_errors) < 1000:
                 self.upstream_errors.append(
                     {
+                        "method": flow.request.method,
                         "url": flow.request.pretty_url[:300],
                         "error": str(flow.error.msg if flow.error else "")[:200],
                         "user_agent": flow.request.headers.get("User-Agent", "")[:200],

@@ -123,6 +123,7 @@ class Browsers:
 
 def run(config: dict, once: bool = False, worker_name: str | None = None) -> int:
     from webparity import visit as visit_mod
+    from webparity.detectors import upstream_errors
     from webparity.known import Known
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -170,7 +171,7 @@ def run(config: dict, once: bool = False, worker_name: str | None = None) -> int
             ]
             blocked = any(bundle.m(n, "probe", "blocked") for n in bundle.data["browsers"] if n != "ladybird")
             status = "candidate" if errors else ("blocked" if blocked else "clean")
-            if bundle.data.get("proxy_upstream_errors") and site["attempts"] < 3:
+            if upstream_errors(bundle) and site["attempts"] < 3:
                 # The proxy lost responses (see detectors.proxy_errors): measure again rather than trust this visit
                 status = "queued"
             db.finish_site(site["id"], status, bundle.id)

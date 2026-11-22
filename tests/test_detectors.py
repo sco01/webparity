@@ -176,6 +176,17 @@ def test_proxy_upstream_errors_mark_error_findings():
     assert info.signature == "proxy-upstream-errors" and info.category == "info"
     assert info.data["per_browser"] == {"ladybird": 1}
 
+    cancelled = {"url": "https://a.example/x.js", "error": "stream reset by client (CANCEL)", "user_agent": "Chrome"}
+    dns = {"url": "https://t.example/p", "error": "[Errno -5] No address associated with hostname", "user_agent": "x"}
+    beacon = {"method": "POST", "url": "https://o1.ingest.example/api/1/envelope/", "error": "connection closed"}
+    both = [
+        {"url": "https://c.example/a", "error": "[Errno 101] Network is unreachable", "user_agent": ua}
+        for ua in ("Ladybird/1.0", "Chrome/1")
+    ]
+    ignored = [Finding("layout:height:block>block", "error", "t")]
+    proxy_errors(SimpleNamespace(data={"proxy_upstream_errors": [cancelled, dns, beacon, *both]}), ignored)
+    assert len(ignored) == 1 and ignored[0].known is None
+
     clean = [Finding("layout:height:block>block", "error", "t")]
     proxy_errors(SimpleNamespace(data={}), clean)
     assert len(clean) == 1 and clean[0].known is None
