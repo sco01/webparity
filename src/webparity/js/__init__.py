@@ -46,10 +46,16 @@ const canvases = cs.map(c => c.getBoundingClientRect()).filter(inView).slice(0, 
 const videos = Array.from(document.querySelectorAll('video')).map(v => v.getBoundingClientRect()).filter(inView).slice(0, 5).map(box);
 const hash = s => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0; return h.toString(36); };
 const css = {}, cssKnown = {}; let cssCross = 0;
+// The same sheet twice (same address or same text) counts once (2026-11-22: a booking widget inserted its three sheets
+// twice in Chromium only, which doubled the reference's count)
+const seenSheets = new Set();
 for (const s of Array.from(document.styleSheets)) {
   let n = null; try { n = s.cssRules.length; } catch (e) { cssCross++; continue; }
   let k; if (s.href) { try { const u = new URL(s.href); k = u.host + u.pathname; } catch (e) { k = s.href.slice(0, 120); } }
   else { const t = s.ownerNode ? s.ownerNode.textContent || '' : ''; k = 'inline:' + t.length + ':' + hash(t); }
+  const id = (s.href || k) + '|' + (s.media ? s.media.mediaText : '');
+  if (seenSheets.has(id)) continue;
+  seenSheets.add(id);
   css[k] = (css[k] || 0) + n;
   // Rules Ladybird drops for known reasons (2026-11-09), counted at the top level like cssRules.length: View Transitions
   // pseudo-classes (only apply during a transition, which cannot start in Ladybird), @starting-style (#14121), :-webkit-any()
