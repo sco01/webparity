@@ -17,8 +17,11 @@ PROBE = r"""
 const cs = Array.from(document.querySelectorAll('canvas'));
 const txt = document.body ? document.body.innerText : '';
 // Text in <option> is not counted (2026-11-08): Chromium includes it in innerText, Ladybird does not (option has
-// display: none) - it gave less-content on school portals. Only options the browser itself considers visible are subtracted.
-const optText = Array.from(document.querySelectorAll('select option')).slice(0, 5000).reduce((s, o) => s + (getComputedStyle(o).display !== 'none' ? o.textContent.trim().length + 1 : 0), 0);
+// display: none) - it gave less-content on school portals. Only options the browser itself considers visible are subtracted,
+// and only in a select that is rendered (2026-11-22: a 0 px wide select with 249 options on newton.se, whose text innerText
+// leaves out in both browsers, took 2,520 characters off a 3,734-character page - Ladybird got 0).
+const shownSelect = sel => { const r = sel.getBoundingClientRect(); return r.width > 0 && r.height > 0 && (typeof sel.checkVisibility !== 'function' || sel.checkVisibility()); };
+const optText = Array.from(document.querySelectorAll('select')).filter(shownSelect).flatMap(sel => Array.from(sel.options)).slice(0, 5000).reduce((s, o) => s + (getComputedStyle(o).display !== 'none' ? o.textContent.trim().length + 1 : 0), 0);
 const R = performance.getEntriesByType('resource');
 const per = {};
 for (const x of R) per[x.initiatorType || 'other'] = (per[x.initiatorType || 'other'] || 0) + 1;
