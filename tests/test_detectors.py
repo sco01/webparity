@@ -219,3 +219,28 @@ def test_font_blocked_when_every_source_came_back_as_html():
     assert [f.signature for f in blocked] == ["font-blocked"] and blocked[0].category == "info"
     partly = font_findings(lp, cp, {"fa-solid-900.woff2"})
     assert len(partly) == 1 and partly[0].signature.startswith("font-error") and partly[0].category == "error"
+
+
+def test_font_failures_explained_one_by_one():
+    from webparity.detectors.image import font_findings
+
+    lp = {
+        "font_errors": 2,
+        "font_error_names": ["Noto Serif 400 normal", "Poppins 400 normal"],
+        "font_error_families": ["Noto Serif", "Poppins"],
+        "font_sources": {
+            "Noto Serif": 'url("https://f.example/l/font?kit=a")',
+            "Poppins": 'url("https://f.example/l/font?kit=b")',
+        },
+        "font_errors_all": ["Noto Serif 400 normal", "Poppins 400 normal"],
+        "font_errors_unreplaced": 1,
+        "fonts_loaded": ["Noto Serif 700 normal", "Poppins 400 normal"],
+    }
+    cp = {
+        "font_errors": 0,
+        "fonts_loaded": ["Noto Serif 700 normal", "Poppins 400 normal"],
+        "font_errors_unreplaced": 0,
+    }
+    assert [f.signature for f in font_findings(lp, cp)] == ["font-replaced"]
+    cp_uses_it = dict(cp, fonts_loaded=cp["fonts_loaded"] + ["Noto Serif 400 normal"])
+    assert font_findings(lp, cp_uses_it)[0].category == "error"

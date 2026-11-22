@@ -201,8 +201,18 @@ def font_findings(lp: dict, cp: dict, html_files: set[str] | None = None) -> lis
                 fonts=names,
             )
         ]
-    if lp.get("font_errors_unreplaced") is not None and num(lp, "font_errors_unreplaced") <= num(
-        cp, "font_errors_unreplaced"
+    # Per font (2026-11-22, gardnordsyd.se): a failed face counts only when Ladybird loaded no other face with the same
+    # family, weight and style and the reference did load it - one replaced and one unused failure made an error before
+    lb_loaded = set(lp.get("fonts_loaded") or [])
+    each_explained = (
+        lp.get("font_errors_all") is not None
+        and lp.get("fonts_loaded") is not None
+        and cp.get("fonts_loaded") is not None
+        and all(n in lb_loaded or n not in ref_loaded for n in lp["font_errors_all"])
+    )
+    if each_explained or (
+        lp.get("font_errors_unreplaced") is not None
+        and num(lp, "font_errors_unreplaced") <= num(cp, "font_errors_unreplaced")
     ):
         return [
             info("font-replaced", "Fonts that didn't load, but another @font-face for the same family did", fonts=names)
