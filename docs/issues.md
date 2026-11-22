@@ -88,7 +88,8 @@ webparity watch
 
 reads every filed issue from the public GitHub REST API, anonymously and read-only, with the configured
 `github.user_agent`. Responses are cached with their ETags in `data_dir/github-cache.json`, so an unchanged issue costs
-a `304`; the watcher stops when the anonymous rate limit is used up and continues on the next run. It records the state
+a `304`; the watcher stops when the anonymous rate limit is used up and continues on the next run. Open issues are read
+first, so a run cut short by the limit leaves only closed issues unread. It records the state
 (`filed`, `closed`, `not-planned`, `duplicate`), the closing date and what closed the issue (`#PR` for a merged pull
 request that references it, else `commit <sha>`).
 
@@ -102,10 +103,13 @@ webparity verify [12345 ...]
 ```
 
 runs each filed issue's test case in Ladybird and Chromium (and Firefox when it is configured), reads `#out` four seconds
-after the page has loaded, and compares the answers with the draft's expected and actual output. Texts that differ only
+after the page has loaded, and compares the answers with the draft's expected and actual output (the code block under
+the heading, or the field's text without a lead-in line such as "As in Chromium and Firefox:"). Texts that differ only
 in numbers count as equal when every number is within 2 units or 2 %. Chromium's answer only counts as a reference when it
 is neither `#out`'s placeholder text (the test case did not finish) nor the reported bug itself (the test environment
-lacked something). Test cases run ten at a time, so one that hangs only costs its batch.
+lacked something). Test cases run ten at a time, so one that hangs only costs its batch. In the nightly chain, verify runs
+after watch, so an issue closed since the last night is judged as closed. A test case imported from a draft's source
+gets the files the source refers to (an image, say) from the `testfall/...` folder the draft mentions.
 
 | Result | Meaning |
 |---|---|

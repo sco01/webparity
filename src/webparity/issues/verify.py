@@ -138,6 +138,21 @@ def build_info(config: dict, db: DB) -> tuple[str, str | None]:
     return (row["build"][:11], None) if row else ("", None)
 
 
+def result_text(text: str) -> str | None:
+    """The result under "Expected behavior" or "Actual behavior": the code block, or, in a draft where the form's code
+    field was filled without a fence, the field's text without a one-line lead-in ("As in Chromium and Firefox:")."""
+    block = code_block(text)
+    if block is not None:
+        return block
+    text = text.strip()
+    if not text:
+        return None
+    first, sep, rest = text.partition("\n\n")
+    if sep and "\n" not in first and first.rstrip().endswith(":") and rest.strip():
+        text = rest.strip()
+    return text
+
+
 def _read(path: Path | None) -> str:
     try:
         return path.read_text(encoding="utf-8") if path else ""
@@ -177,8 +192,8 @@ def prepare(config: dict, row, stage: Path) -> dict:
         item["result"], item["reason"] = "manual", "interactive steps"
         return item
     side = test_case if test_case.is_dir() else test_case.parent
-    expected = code_block(section(draft, "Expected behavior"))
-    actual = code_block(section(draft, "Actual behavior"))
+    expected = result_text(section(draft, "Expected behavior"))
+    actual = result_text(section(draft, "Actual behavior"))
     if expected is None and (side / "expected.txt").is_file():
         expected = _read(side / "expected.txt")
     if actual is None and (side / "actual.txt").is_file():

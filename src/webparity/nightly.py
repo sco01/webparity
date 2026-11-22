@@ -191,8 +191,8 @@ STEPS = [
     ("build", step_build, True),
     ("canary", step_canary, False),
     ("regression", step_regression, False),
+    ("watch", step_watch, False),  # before verify, which needs to know which issues are closed
     ("verify", step_verify, False),
-    ("watch", step_watch, False),
     ("retire", step_retire, False),
     ("requeue", step_requeue, False),
     ("index", step_index, False),

@@ -159,7 +159,8 @@ def watch(config: dict, db: DB, numbers: list[int] | None = None) -> list[dict]:
     repository = config.get("github", {}).get("repository") or "LadybirdBrowser/ladybird"
     client = Client(config)
     sql = "SELECT * FROM issues WHERE number IS NOT NULL AND kind = 'issue' AND state != 'draft'"
-    rows = db.q(sql + " ORDER BY number")
+    # Open issues first: if the rate limit runs out, what is left are closed issues (which seldom change)
+    rows = db.q(sql + " ORDER BY state != 'filed', closed_by IS NOT NULL, number")
     if numbers:
         wanted = set(numbers)
         rows = [r for r in rows if r["number"] in wanted]

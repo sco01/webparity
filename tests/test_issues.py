@@ -19,7 +19,7 @@ from webparity.issues.github import watch
 from webparity.issues.import_gallery import import_gallery, parse_status
 from webparity.issues.index import generate_index
 from webparity.issues.register import register, register_comment
-from webparity.issues.verify import assess, format_report, same, verify
+from webparity.issues.verify import assess, format_report, result_text, same, verify
 from webparity.probe import Result
 
 SIG = "js-error:TypeError: x is not a function"
@@ -277,6 +277,17 @@ def test_watch_stops_at_rate_limit(env, github):
     assert db.one("SELECT state FROM issues")[0] == "filed"
 
 
+def test_watch_checks_open_issues_first(env, github):
+    config, db, _ = env
+    for number, state, closed_by in ((10, "closed", "#1"), (11, "closed", None), (12, "filed", None)):
+        sql = "INSERT INTO issues (number, kind, state, closed_by) VALUES (?, 'issue', ?, ?)"
+        db.x(sql, (number, state, closed_by))
+        github.issues[number] = {"number": number, "title": "T", "state": "closed" if state == "closed" else "open"}
+    github.remaining = 1
+    watch(config, db)
+    assert github.requests[0][0].endswith("/issues/12")
+
+
 # --- verification ----------------------------------------------------------------------------------------------------
 def make_issue(config, db, tmp, number, state, html, expected, actual, steps="1. Open the test case below.", **kw):
     case = tmp / f"case{number}"
@@ -406,6 +417,13 @@ def test_verify_batches_and_firefox(env, monkeypatch):
     assert db.one("SELECT COUNT(*) FROM issues WHERE verified IS NOT NULL")[0] == 0
 
 
+def test_result_text():
+    assert result_text("```\nok\n```\n") == "ok\n"
+    assert result_text("As in Chromium and Firefox:\n\na: 1\nb: 2\n") == "a: 1\nb: 2"
+    assert result_text("a: 1\nb: 2\n") == "a: 1\nb: 2"
+    assert result_text("\n") is None
+
+
 def test_same_and_assess():
     assert same("width: 100\nheight: 50", "width: 101\nheight: 50")
     assert same("w 1000", "w 1019") and not same("w 1000", "w 1030")
@@ -465,6 +483,9 @@ def test_import_gallery(env):
     (gallery / "issues").mkdir(parents=True)
     (gallery / "testfall" / "folder-case").mkdir(parents=True)
     (gallery / "testfall" / "folder-case" / "test.html").write_text('<pre id="out"></pre>')
+    (gallery / "testfall" / "img-case").mkdir()
+    for name in ("test.html", "bild.png", "other.png"):  # bild.png is referenced by the source, other.png is not
+        (gallery / "testfall" / "img-case" / name).write_text(name)
     (gallery / "issues" / "INDEX.md").write_text(
         "# Issues\n\n| Issue | Filed | Status | Title | Draft |\n|---|---|---|---|---|\n"
         "| [#100](u) | 2026-11-01 | closed (completed) 2026-11-03 (abcdef12345, PR #101) | First \\| one"
@@ -479,8 +500,9 @@ def test_import_gallery(env):
         "\n## Queue\n\n| # | Class | Draft | Effect |\n|---|---|---|---|\n| 1 | 3 | [q.md](q.md) | x |\n"
     )
     (gallery / "issues" / "one.md").write_text(
-        "# Issue draft\n\n## Title\nFirst | one\n\n## Steps to reproduce\n1. Open it.\n\n"
-        '## HTML/SVG/etc. source for a reduced test case\n<!-- test.html -->\n<pre id="out"></pre>\n'
+        "# Issue draft\n\nTest case testfall/img-case/test.html.\n\n## Title\nFirst | one\n\n## Steps to reproduce\n"
+        '1. Open it.\n\n## HTML/SVG/etc. source for a reduced test case\n<!-- test.html -->\n<pre id="out"></pre>\n'
+        '<img src="bild.png?1">\n'
         "<!-- page.html -->\n<p>b</p>\n\n## Log output\nN/A\n"
     )
     (gallery / "issues" / "two.md").write_text(
@@ -512,7 +534,8 @@ def test_import_gallery(env):
     assert first["filed"] == "2026-11-01" and first["closed"] == "2026-11-03"
     data = Path(config["data_dir"])
     assert first["test_case"] == "test-cases/imported/100"
-    assert {p.name for p in (data / first["test_case"]).iterdir()} == {"index.html", "test.html", "page.html"}
+    files = {p.name for p in (data / first["test_case"]).iterdir()}
+    assert files == {"index.html", "test.html", "page.html", "bild.png"}
     assert Path(first["draft"]).parent == data / "drafts" / "imported"
     second = db.one("SELECT * FROM issues WHERE number = 200")
     assert second["state"] == "filed" and json.loads(second["signatures"]) == [SIG]

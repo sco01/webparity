@@ -83,6 +83,7 @@ def _test_case(gallery: Path, draft_text: str, number: int, target_root: Path) -
         if folder.exists():
             shutil.rmtree(folder)
         write_source(folder, source)
+        _copy_referenced(gallery, draft_text, source, folder)
         return folder.as_posix()
     for mention in TEST_CASE_MENTION.findall(draft_text):
         path = gallery / mention.rstrip(".,/")
@@ -96,6 +97,19 @@ def _test_case(gallery: Path, draft_text: str, number: int, target_root: Path) -
             shutil.copy2(path, folder / path.name)
             return (folder / path.name).as_posix()
     return None
+
+
+def _copy_referenced(gallery: Path, draft_text: str, source: str, folder: Path) -> None:
+    """Files the source refers to but does not contain (``bild.png`` next to a lazy-loading test), copied from the
+    ``testfall/...`` folder the draft mentions; without them both browsers fail alike and the test looks fixed."""
+    for mention in TEST_CASE_MENTION.findall(draft_text):
+        path = gallery / mention.rstrip(".,/")
+        side = path if path.is_dir() else path.parent
+        if not side.is_dir() or side.name == "testfall" or not side.resolve().is_relative_to(gallery.resolve()):
+            continue
+        for f in side.iterdir():
+            if f.is_file() and not (folder / f.name).exists() and re.search(rf"\b{re.escape(f.name)}\b", source):
+                shutil.copy2(f, folder / f.name)
 
 
 def _relative(config: dict, path: str | None) -> str | None:
