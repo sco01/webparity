@@ -5,7 +5,8 @@ Rules (each fires at most one alert at a time):
 
 ``low_rate``
     Fewer visits in the last hour than ``alerts.min_visits_per_hour``. Not while the last hour overlaps the quiet
-    hours (``worker.quiet_hours``), not in the first hour after the first visit ever, and not before any visit.
+    hours (``worker.quiet_hours``) or a nightly run, not in the first hour after the first visit ever, and not
+    before any visit.
 ``nightly_failed``
     The latest nightly run (``runs`` row of kind ``nightly``) ended with a status other than ``ok``, or there is no
     successful nightly run in the last 26 hours. A run still ``running`` is not a failure by itself.
@@ -42,6 +43,7 @@ log = logging.getLogger(__name__)
 
 RULES = ("low_rate", "nightly_failed", "probe_down")
 NIGHTLY_MAX_AGE = 26 * 3600
+NIGHTLY_HUNG = 6 * 3600
 PROBE_TIMEOUT = 5.0
 INTERVAL = 60.0
 
@@ -94,6 +96,23 @@ def overlaps_quiet_hours(config: dict, start: float, end: float) -> bool:
     return False
 
 
+def nightly_overlaps(db, start: float, end: float) -> bool:
+    """Whether a nightly run was going on at some point in [start, end]: it takes the CPU (canary, regression sites,
+    verification), so the workers pause above ``worker.max_load`` and fewer visits are expected."""
+    fmt = "%Y-%m-%d %H:%M:%S"
+    a, b = time.strftime(fmt, time.localtime(start)), time.strftime(fmt, time.localtime(end))
+    stale = time.strftime(fmt, time.localtime(end - NIGHTLY_HUNG))  # a run left "running" this long counts no more
+    try:
+        row = db.one(
+            "SELECT 1 FROM runs WHERE kind = 'nightly' AND started <= ?"
+            " AND (finished >= ? OR (finished IS NULL AND started >= ?)) LIMIT 1",
+            (b, a, stale),
+        )
+    except Exception:  # an old database without runs
+        return False
+    return row is not None
+
+
 def check_low_rate(config: dict, db, now: float) -> Alert | None:
     minimum = int((config.get("alerts") or {}).get("min_visits_per_hour") or 0)
     if minimum <= 0:
@@ -101,7 +120,7 @@ def check_low_rate(config: dict, db, now: float) -> Alert | None:
     first = metrics.first_visit(db)
     if first is None or now - first < 3600:
         return None
-    if overlaps_quiet_hours(config, now - 3600, now):
+    if overlaps_quiet_hours(config, now - 3600, now) or nightly_overlaps(db, now - 3600, now):
         return None
     count = metrics.visits_last_hour(db, now)
     if count >= minimum:

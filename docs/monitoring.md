@@ -85,7 +85,7 @@ health page and in `webparity_alerts_open`.
 
 | Rule | Fires when |
 |---|---|
-| `low_rate` | Fewer than `alerts.min_visits_per_hour` visits in the last hour. Not while that hour overlaps the quiet hours (`worker.quiet_hours`, a list or comma-separated string of `HH:MM-HH:MM`, may cross midnight), not before the first visit, and not in the first hour after it. `0` turns the rule off. |
+| `low_rate` | Fewer than `alerts.min_visits_per_hour` visits in the last hour. Not while that hour overlaps the quiet hours (`worker.quiet_hours`, a list or comma-separated string of `HH:MM-HH:MM`, may cross midnight) or a nightly run (one still marked running counts for at most 6 hours), not before the first visit, and not in the first hour after it. `0` turns the rule off. |
 | `nightly_failed` | The latest `runs` row of kind `nightly` has a status other than `ok` (a run that is still `running` does not count), or there was no successful nightly run in the last 26 hours (including never). |
 | `probe_down` | An endpoint in `alerts.probe_endpoint` (a string, a comma-separated string or a list), or `endpoints.ladybird` and `endpoints.chromium` when it is empty, does not answer `GET <endpoint>/status` with 200 within 5 seconds. Only `http(s)` endpoints are probed. |
 

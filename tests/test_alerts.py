@@ -68,7 +68,7 @@ class Recorder:
 
 
 def test_low_rate_fires_and_resolves(config, db):
-    add_nightly(db, NOW - 3600, "ok", NOW - 3000)
+    add_nightly(db, NOW - 7200, "ok", NOW - 6600)
     add_visits(db, NOW - 3 * 3600, 20, "old")
     add_visits(db, NOW - 600, 5)
     notified = Recorder()
@@ -98,6 +98,16 @@ def test_low_rate_not_in_quiet_hours(config, db):
     assert alerts.check_low_rate(config, db, local(3, 31)).rule == "low_rate"
     assert alerts.check_low_rate(config, db, local(0, 59)).rule == "low_rate"
     assert alerts.check_low_rate(config, db, local(0, 1)) is not None
+
+
+def test_low_rate_not_during_or_just_after_a_nightly_run(config, db):
+    add_visits(db, local(0) - 6 * 3600, 20)
+    add_nightly(db, local(2, 45), "ok", local(3, 21))
+    for when in (local(3, 0), local(3, 40), local(4, 20)):  # the last hour overlaps the run
+        assert alerts.check_low_rate(config, db, when) is None
+    assert alerts.check_low_rate(config, db, local(4, 22)).rule == "low_rate"
+    db.x("UPDATE runs SET finished = NULL, status = 'running'")
+    assert alerts.check_low_rate(config, db, local(6, 0)) is None  # still running
 
 
 def test_quiet_hours_as_string_and_across_midnight(config):
