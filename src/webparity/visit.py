@@ -203,7 +203,9 @@ def visit(
     finally:
         if recording:
             try:
-                proxy.passthrough()
+                previous = proxy.passthrough().get("previous") or {}
+                if previous.get("upstream_errors"):
+                    bundle.data["proxy_upstream_errors"] = previous["upstream_errors"]
             except ProxyError as exc:
                 bundle.data["proxy_error"] = str(exc)
             bundle.move_in(proxy.recording_path(bundle.id), "recording.warc.gz")

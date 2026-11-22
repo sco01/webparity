@@ -160,3 +160,22 @@ def test_translate_status():
     assert translate_status("site", "kö") == "queued"
     assert translate_status("visit", "kandidat") == "candidate"
     assert translate_status("category", "fel") == "error"
+
+
+def test_proxy_upstream_errors_mark_error_findings():
+    from types import SimpleNamespace
+
+    from webparity.detectors import PROXY_KNOWN, proxy_errors
+
+    lost = {"url": "https://a.example/style.css", "error": "server closed connection", "user_agent": "Ladybird/1.0"}
+    bundle = SimpleNamespace(data={"proxy_upstream_errors": [lost]})
+    findings = [Finding("layout:height:block>block", "error", "t"), Finding("missing-feature:x", "info", "t")]
+    proxy_errors(bundle, findings)
+    assert findings[0].known == PROXY_KNOWN and findings[1].known is None
+    info = findings[-1]
+    assert info.signature == "proxy-upstream-errors" and info.category == "info"
+    assert info.data["per_browser"] == {"ladybird": 1}
+
+    clean = [Finding("layout:height:block>block", "error", "t")]
+    proxy_errors(SimpleNamespace(data={}), clean)
+    assert len(clean) == 1 and clean[0].known is None

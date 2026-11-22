@@ -54,6 +54,8 @@ class Recorder:
         self.records = 0
         self.index: dict[tuple[str, str], list[dict]] = {}
         self.missing: list[str] = []
+        # Exchanges mitmproxy answered with its own 502 (the server closed the connection, reset it, timed out, ...)
+        self.upstream_errors: list[dict] = []
 
     # --- control --------------------------------------------------------------------------------------------------
     def _close(self) -> None:
@@ -62,10 +64,13 @@ class Recorder:
         self.file, self.writer = None, None
 
     def set_pass(self) -> dict:
+        """Stops recording or replaying; the reply has the finished recording's status under ``previous``."""
         with self.lock:
+            previous = self.status_locked()
             self._close()
             self.mode, self.name, self.records, self.index, self.missing = "pass", None, 0, {}, []
-            return self.status_locked()
+            self.upstream_errors = []
+            return {**self.status_locked(), "previous": previous}
 
     def set_record(self, name: str) -> dict:
         with self.lock:
@@ -74,6 +79,7 @@ class Recorder:
             self.file = open(RECORDINGS / f"{name}.warc.gz", "ab")
             self.writer = WARCWriter(self.file, gzip=True)
             self.mode, self.name, self.records, self.index, self.missing = "record", name, 0, {}, []
+            self.upstream_errors = []
             return self.status_locked()
 
     def set_replay(self, name: str) -> dict:
@@ -108,11 +114,28 @@ class Recorder:
             return self.status_locked()
 
     def status_locked(self) -> dict:
-        return {"mode": self.mode, "name": self.name, "records": self.records, "missing": self.missing[-200:]}
+        return {
+            "mode": self.mode,
+            "name": self.name,
+            "records": self.records,
+            "missing": self.missing[-200:],
+            "upstream_errors": self.upstream_errors[-200:],
+        }
 
     def status(self) -> dict:
         with self.lock:
             return self.status_locked()
+
+    def note_error(self, flow: http.HTTPFlow) -> None:
+        with self.lock:
+            if self.mode == "record" and len(self.upstream_errors) < 1000:
+                self.upstream_errors.append(
+                    {
+                        "url": flow.request.pretty_url[:300],
+                        "error": str(flow.error.msg if flow.error else "")[:200],
+                        "user_agent": flow.request.headers.get("User-Agent", "")[:200],
+                    }
+                )
 
     # --- traffic --------------------------------------------------------------------------------------------------
     def write(self, flow: http.HTTPFlow) -> None:
@@ -285,6 +308,12 @@ class WebparityProxy:
     def response(self, flow: http.HTTPFlow) -> None:
         if RECORDER.mode == "record" and flow.response is not None:
             RECORDER.write(flow)
+
+    def error(self, flow: http.HTTPFlow) -> None:
+        # mitmproxy answers these with its own 502, which a page can't tell from the server's: the visit notes them so
+        # that a stylesheet or script lost in one browser isn't reported as a difference (webparity.detectors).
+        if flow.response is None:
+            RECORDER.note_error(flow)
 
 
 addons = [WebparityProxy()]
