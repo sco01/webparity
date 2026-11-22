@@ -165,7 +165,7 @@ return {title: document.title.slice(0, 80), url: location.href.slice(0, 300), co
 # the ordinal among siblings with the same tag and class). The layout detector pairs them up and points out the element
 # where a difference starts. Does not descend into svg, iframes, script/style or elements with display: none.
 # Row: [key, parent index, x, y, w, h, display, position, float, own text length, font size, "children:text prefix",
-#       hidden by content-visibility, content-visibility: auto]
+#       hidden by content-visibility, content-visibility: auto, an input's type (2026-11-22)]
 LAYOUT = r"""
 const MAX = 4000, out = [], REPLACED = /^(IMG|SVG|VIDEO|IFRAME|INPUT|BUTTON|SELECT|TEXTAREA|CANVAS|OBJECT|EMBED|AUDIO|PROGRESS|METER)$/;
 const SKIP = /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|LINK|META|HEAD|TITLE|BR|WBR)$/;
@@ -187,7 +187,8 @@ while (stack.length && out.length < MAX) {
   const hidden = c.display !== 'none' && typeof e.checkVisibility === 'function' && !e.checkVisibility({contentVisibilityAuto: true}) ? 1 : 0;
   const cva = c.contentVisibility === 'auto' ? 1 : 0;
   out.push([pk, pi, Math.round(r.left + sx), Math.round(r.top + sy), Math.round(r.width), Math.round(r.height), c.display, c.position, c.cssFloat,
-           text, parseFloat(c.fontSize) || 16, e.childElementCount + ':' + fp.replace(/\s+/g, ' '), hidden, cva]);
+           text, parseFloat(c.fontSize) || 16, e.childElementCount + ':' + fp.replace(/\s+/g, ' '), hidden, cva,
+           tag === 'INPUT' ? (e.type || '') : '']);
   // Maps (2026-11-18): Google Maps and Leaflet put the tiles into the DOM in the order they load, so "tile 7" is a different
   // tile in each browser (positions differed by multiples of 256 px - 2/3 of layout:position:block>block). The map is
   // compared, not the tiles in it.

@@ -1,0 +1,7 @@
+{
+ "detector": "layout",
+ "must": [
+  "layout:width:inline-block>input"
+ ],
+ "must_not": []
+}

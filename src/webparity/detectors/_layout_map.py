@@ -10,7 +10,8 @@ Each cause has the signature ``<kind>:<parent display>><display>`` (the tag for 
 With the reference's map after its reload, elements that differ between the reference's own two loads do not count.
 Elements hidden under content-visibility: hidden in the reference (a closed <details>, hidden=until-found) do not count
 either: Ladybird creates no boxes for them and measures 0 x 0, Chromium and Firefox measure them (known, 2026-11-09 -
-half of layout:missing:block>block).
+half of layout:missing:block>block). A file upload control's width is each browser's own choice and does not count
+either (2026-11-22).
 """
 
 from __future__ import annotations
@@ -31,6 +32,8 @@ REPLACED = {
     "progress",
     "meter",
 }
+# Input types whose width is the browser's own choice (no specified intrinsic size)
+NATIVE_WIDTH = {"file"}
 # Only the first three screens in the reference - further down lazy loading and time-dependent content differ
 DEPTH = 2700
 
@@ -58,6 +61,7 @@ def index(rows: list) -> dict:
             "fp": fp,
             "hidden": len(r) > 12 and bool(r[12]),
             "cva": len(r) > 13 and bool(r[13]),
+            "type": r[14] if len(r) > 14 else "",
             "fixed": bool(fixed),
             "tag": key.rsplit("/", 1)[-1].split(":")[0].split("#")[0].split(".")[0],
         }
@@ -103,6 +107,12 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
             # content-visibility: auto (2026-11-10): Chromium gives the element a placeholder size off screen - not a
             # cause, but counted as an explanation so the ancestors are not pointed out
             kinds[k] = "cv-auto"
+        elif c["tag"] == "input" and c["type"] in NATIVE_WIDTH and abs(lb["h"] - c["h"]) < 8:
+            # A file upload control has no specified size: Chromium reserves 253 px (button and "No file chosen" in a
+            # fixed box), Ladybird sizes it to the button and its text (186 px) - not a cause, but an explanation for
+            # the ancestors (2026-11-22: 15+ sites as layout:width:block>input)
+            if abs(lb["w"] - c["w"]) >= 24:
+                kinds[k] = "native-width"
         elif zero(lb) and visible(c):
             kinds[k] = "missing"
         elif zero(c) and visible(lb):
@@ -146,7 +156,7 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
     causes = []
     for k, kind in kinds.items():
         c, lb = C[k], L[k]
-        if kind == "cv-auto":
+        if kind in ("cv-auto", "native-width"):
             continue
         if kind in ("missing", "extra") and kinds.get(c["parent"]) == kind:
             continue  # the outermost element that is missing is enough
