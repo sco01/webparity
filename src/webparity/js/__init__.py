@@ -176,7 +176,9 @@ return {title: document.title.slice(0, 80), url: location.href.slice(0, 300), co
 LAYOUT = r"""
 const MAX = 4000, out = [], REPLACED = /^(IMG|SVG|VIDEO|IFRAME|INPUT|BUTTON|SELECT|TEXTAREA|CANVAS|OBJECT|EMBED|AUDIO|PROGRESS|METER)$/;
 const SKIP = /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|LINK|META|HEAD|TITLE|BR|WBR)$/;
-const CAROUSEL = ['flickity-viewport', 'slick-list', 'swiper-wrapper', 'splide__track', 'owl-stage-outer', 'glide__track', 'carousel-inner', 'slideshow'];
+const CAROUSEL = ['flickity-viewport', 'slick-list', 'swiper-wrapper', 'splide__track', 'owl-stage-outer', 'glide__track', 'carousel-inner', 'slideshow', 'n2-ss-slider-1'];
+// jQuery Cycle marks the slides, not the viewport (2026-11-22: byggnyheter's header)
+const CAROUSEL_SLIDE = 'cycle-slide';
 const stable = x => x && /^[A-Za-z][\w-]{0,40}$/.test(x) && !/\d{3,}|[0-9a-f]{6,}/i.test(x);
 if (!document.body) return [];
 const sx = scrollX, sy = scrollY;
@@ -204,7 +206,8 @@ while (stack.length && out.length < MAX) {
   // umarellrestaurant.se swapped between two visits) - the carousel's viewport is compared, not the slides in it.
   if (c.display === 'none' || tag === 'SVG' || tag === 'IFRAME' || REPLACED.test(tag)
       || (e.classList && (e.classList.contains('gm-style') || e.classList.contains('leaflet-map-pane')
-          || CAROUSEL.some(k => e.classList.contains(k))))) continue;
+          || CAROUSEL.some(k => e.classList.contains(k))
+          || (e.firstElementChild && e.firstElementChild.classList.contains(CAROUSEL_SLIDE))))) continue;
   const counter = {}, children = [];
   for (const b of e.children) {
     const t = b.tagName.toUpperCase(); if (SKIP.test(t)) continue;
