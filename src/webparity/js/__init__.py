@@ -163,12 +163,14 @@ return {title: document.title.slice(0, 80), url: location.href.slice(0, 300), co
 # The layout map (2026-11-09, "compare elements instead of pixels"): position, size and computed display for up to 4,000
 # elements in document order, with a key that is the same in every browser (a path of tag, stable id or first class, and
 # the ordinal among siblings with the same tag and class). The layout detector pairs them up and points out the element
-# where a difference starts. Does not descend into svg, iframes, script/style or elements with display: none.
+# where a difference starts. Does not descend into svg, iframes, script/style, elements with display: none, maps or
+# carousels.
 # Row: [key, parent index, x, y, w, h, display, position, float, own text length, font size, "children:text prefix",
 #       hidden by content-visibility, content-visibility: auto, an input's type (2026-11-22)]
 LAYOUT = r"""
 const MAX = 4000, out = [], REPLACED = /^(IMG|SVG|VIDEO|IFRAME|INPUT|BUTTON|SELECT|TEXTAREA|CANVAS|OBJECT|EMBED|AUDIO|PROGRESS|METER)$/;
 const SKIP = /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|LINK|META|HEAD|TITLE|BR|WBR)$/;
+const CAROUSEL = ['flickity-viewport', 'slick-list', 'swiper-wrapper', 'splide__track', 'owl-stage-outer', 'glide__track', 'carousel-inner', 'slideshow'];
 const stable = x => x && /^[A-Za-z][\w-]{0,40}$/.test(x) && !/\d{3,}|[0-9a-f]{6,}/i.test(x);
 if (!document.body) return [];
 const sx = scrollX, sy = scrollY;
@@ -192,8 +194,11 @@ while (stack.length && out.length < MAX) {
   // Maps (2026-11-18): Google Maps and Leaflet put the tiles into the DOM in the order they load, so "tile 7" is a different
   // tile in each browser (positions differed by multiples of 256 px - 2/3 of layout:position:block>block). The map is
   // compared, not the tiles in it.
+  // Carousels (2026-11-22): sliders that advance on a timer show a different slide in each browser (Flickity on
+  // umarellrestaurant.se swapped between two visits) - the carousel's viewport is compared, not the slides in it.
   if (c.display === 'none' || tag === 'SVG' || tag === 'IFRAME' || REPLACED.test(tag)
-      || (e.classList && (e.classList.contains('gm-style') || e.classList.contains('leaflet-map-pane')))) continue;
+      || (e.classList && (e.classList.contains('gm-style') || e.classList.contains('leaflet-map-pane')
+          || CAROUSEL.some(k => e.classList.contains(k))))) continue;
   const counter = {}, children = [];
   for (const b of e.children) {
     const t = b.tagName.toUpperCase(); if (SKIP.test(t)) continue;
