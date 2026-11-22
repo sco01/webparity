@@ -57,6 +57,9 @@ services:
     build:
       context: images
       dockerfile: ladybird/Dockerfile
+      args:
+        # The tag in Meta/Docker/ci/VERSION of the Ladybird checkout the build came from
+        LADYBIRD_CI_TAG: ${LADYBIRD_CI_TAG:-2026.11.20}
     network_mode: "service:reference"
     pid: "service:reference"
     depends_on: [reference, proxy]

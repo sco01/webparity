@@ -49,7 +49,7 @@ DEFAULTS: dict[str, Any] = {
         "webhook": "",  # POST JSON to this URL
         "email": {"to": "", "from": "", "smtp": ""},
         "pushover": {"credentials": "", "app": "", "priority": 0},  # credentials: file with PUSHOVER_TOKEN/USER
-        "min_visits_per_hour": 150,
+        "min_visits_per_hour": 0,  # 0: off; set it to about two thirds of your usual rate
         "probe_endpoint": "",
     },
     "github": {

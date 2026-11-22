@@ -30,7 +30,9 @@ alerts:
   webhook: ""                 # POST JSON {rule, state, message, time} here
   email: {to: "", from: "", smtp: ""}   # smtp: host:port of a local relay (no TLS, no login)
   pushover: {credentials: "", app: "", priority: 0}   # credentials: file with PUSHOVER_TOKEN= and PUSHOVER_USER=
-  min_visits_per_hour: 150
+  # Alert when fewer visits than this finished in the last hour; 0 turns it off. One stack does about 60-100 an
+  # hour, so about two thirds of your usual rate (for example 50 per stack) catches a stalled worker.
+  min_visits_per_hour: 0
   probe_endpoint: ""          # default: the WebDriver endpoints
 
 github:

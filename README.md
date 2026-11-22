@@ -40,9 +40,12 @@ These are built into the defaults and apply to anyone running webparity:
 
 ## Quick start
 
+With a Ladybird build made in Ladybird's CI image ([how](docs/getting-started.md#1-build-ladybird)):
+
 ```sh
-mkdir -p data && cp config.example.yaml data/config.yaml
-LADYBIRD_BUILD=/path/to/ladybird/Build/release docker compose up -d --build
+mkdir -p data/recordings && cp config.example.yaml data/config.yaml && sudo chown -R 2001:2001 data
+export LADYBIRD_BUILD=~/ladybird/Build/release LADYBIRD_CI_TAG=$(cat ~/ladybird/Meta/Docker/ci/VERSION)
+docker compose up -d --build
 docker compose run --rm worker sites add https://example.org/
 ```
 
