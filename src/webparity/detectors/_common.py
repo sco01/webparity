@@ -3,9 +3,9 @@
 
 Ladybird is compared with one reference browser (Chromium when it took part, else the first other browser). Most
 comparisons only make sense when both browsers got a real page: ``gate`` says why not, in the old explorer's order -
-no usable reference (missing, behind a bot wall, an error page, a navigation that aborted) -> only what Ladybird can
-tell on its own; the browsers ended on different sites -> nothing is compared; Ladybird got an error page or a bot wall
--> only ``not-loading``.
+no usable reference (missing, behind a bot wall, an error page, a navigation that aborted or timed out) -> only what
+Ladybird can tell on its own; the browsers ended on different sites -> nothing is compared; Ladybird got an error page
+or a bot wall -> only ``not-loading``.
 """
 
 from __future__ import annotations
@@ -112,7 +112,10 @@ def gate(bundle) -> str:
     lp, cp = m(bundle, "ladybird", "probe"), m(bundle, ref, "probe")
     # The reference's navigation aborted (2026-11-22): the address was a download (an AVIF without Content-Type) and
     # both browsers stayed on the session's previous page, which was then measured as if it were this one
-    aborted = "ERR_ABORTED" in str(m(bundle, ref, "load").get("error") or "") if ref else False
+    # Or it timed out (2026-11-22, 12 of 499 visits, always together with Ladybird's): the page was measured half
+    # loaded in both browsers, so late stylesheets made css-rules and layout differences that weren't there
+    ref_error = str(m(bundle, ref, "load").get("error") or "") if ref else ""
+    aborted = "ERR_ABORTED" in ref_error or "no answer in" in ref_error
     if not ref or not cp or cp.get("blocked") or cp.get("error_page") or cp.get("error") or aborted:
         result = NO_REFERENCE
     elif (
