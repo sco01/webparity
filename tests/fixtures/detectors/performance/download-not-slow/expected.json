@@ -1,0 +1,7 @@
+{
+ "detector": "performance",
+ "must": [],
+ "must_not": [
+  "slow-load"
+ ]
+}
