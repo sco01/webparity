@@ -16,7 +16,8 @@ Signatures (error unless marked info):
 - ``font-error[:<source formats>]``: fonts that failed to load in Ladybird, named after the @font-face source formats.
   Not when the reference didn't load them either (``font-not-loaded-in-reference``, info - a 404, unused, or a local
   alias Chromium finds), when another @font-face of the same family loaded (``font-replaced``, info), or when the
-  sources are only local() (``font-local``, info: the font isn't in the test environment; next/font's "X Fallback").
+  sources are only local() (``font-local``, info: the font isn't in the test environment; next/font's "X Fallback"), or
+  when every url() of the failed fonts came back to Ladybird as HTML (``font-blocked``, info: a bot wall or error page).
 """
 
 from __future__ import annotations
@@ -25,7 +26,20 @@ import re
 
 from webparity import images
 from webparity.detectors import Detector
-from webparity.detectors._common import OK, cache, dict_list, file_type, finding, gate, grid, info, m, num, reference
+from webparity.detectors._common import (
+    OK,
+    cache,
+    dict_list,
+    events,
+    file_type,
+    finding,
+    gate,
+    grid,
+    info,
+    m,
+    num,
+    reference,
+)
 from webparity.detectors.layout import layout_findings
 from webparity.detectors.mobile import mobile_findings
 
@@ -84,7 +98,7 @@ def image_findings(bundle) -> list:
                 count=[lp.get("broken_images"), cp.get("broken_images")],
             )
         )
-    out.extend(font_findings(lp, cp))
+    out.extend(font_findings(lp, cp, html_responses(bundle)))
     result = comparison(bundle)
     for kind, name, label in (("iframes", "empty-iframe", "Iframe"), ("canvases", "empty-canvas", "Canvas")):
         for r in result.get(kind) or []:
@@ -150,7 +164,18 @@ def pdf_viewer_share(area, iframes: list) -> float:
     return covered / (aw * ah)
 
 
-def font_findings(lp: dict, cp: dict) -> list:
+def html_responses(bundle) -> set[str]:
+    """File names of the responses Ladybird got as HTML (a bot wall or an error page instead of the file)."""
+    return {
+        (e.get("url") or "").split("?")[0].rsplit("/", 1)[-1]
+        for e in events(bundle)
+        if e.get("browser") == "ladybird"
+        and e.get("method") == "network.responseCompleted"
+        and (e.get("mime") or "").startswith("text/html")
+    }
+
+
+def font_findings(lp: dict, cp: dict, html_files: set[str] | None = None) -> list:
     if num(lp, "font_errors") <= num(cp, "font_errors"):
         return []
     names = lp.get("font_error_names") or []
@@ -184,6 +209,21 @@ def font_findings(lp: dict, cp: dict) -> list:
         ]
     if types == ["local"]:
         return [info("font-local", "Fonts with only local() sources that aren't in the test environment", fonts=names)]
+    # The server sent Ladybird an HTML page for every url() of the failed fonts (2026-11-22: nearyou.se's host showed a
+    # "One moment, please..." bot wall to Ladybird's font requests and the font to Chromium's)
+    urls = [re.findall(r"url\(\s*[\"']?([^\"')]+)", sources.get(f) or "") for f in kinds]
+    if (
+        html_files
+        and urls
+        and all(u and all(x.split("?")[0].rsplit("/", 1)[-1] in html_files for x in u) for u in urls)
+    ):
+        return [
+            info(
+                "font-blocked",
+                "The font files came back as HTML in Ladybird (a bot wall or an error page)",
+                fonts=names,
+            )
+        ]
     formats = [t for t in types if t != "local"]
     return [
         finding(

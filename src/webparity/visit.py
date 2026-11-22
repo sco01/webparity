@@ -88,6 +88,7 @@ def compact_event(event: dict, browser: str, step: str, top_context: str | None)
                 "url": (request.get("url") or "")[:500],
                 "request_method": request.get("method"),
                 "status": response.get("status"),
+                "mime": (response.get("mimeType") or "")[:100] or None,
                 "error": params.get("errorText"),
             }
         )

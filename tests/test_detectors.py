@@ -200,3 +200,22 @@ def test_pdf_viewer_share():
     assert pdf_viewer_share([32, 320, 1376, 576], [pdf]) > 0.9
     assert pdf_viewer_share([32, 320, 1376, 576], [page]) == 0
     assert pdf_viewer_share(None, [pdf]) == 0
+
+
+def test_font_blocked_when_every_source_came_back_as_html():
+    from webparity.detectors.image import font_findings
+
+    src = 'url("../webfonts/fa-solid-900.woff2") format(woff2), url("../webfonts/fa-solid-900.woff") format(woff)'
+    lp = {
+        "font_errors": 1,
+        "font_error_names": ["Font Awesome 5 Free 900 normal"],
+        "font_error_families": ["Font Awesome 5 Free"],
+        "font_sources": {"Font Awesome 5 Free": src},
+        "font_errors_all": ["Font Awesome 5 Free 900 normal"],
+        "font_errors_unreplaced": 1,
+    }
+    cp = {"font_errors": 0, "fonts_loaded": ["Font Awesome 5 Free 900 normal"], "font_errors_unreplaced": 0}
+    blocked = font_findings(lp, cp, {"fa-solid-900.woff2", "fa-solid-900.woff"})
+    assert [f.signature for f in blocked] == ["font-blocked"] and blocked[0].category == "info"
+    partly = font_findings(lp, cp, {"fa-solid-900.woff2"})
+    assert len(partly) == 1 and partly[0].signature.startswith("font-error") and partly[0].category == "error"
