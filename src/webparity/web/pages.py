@@ -43,6 +43,7 @@ margin:2.4em 0 .8em}
 h1+p,h1+.cards{margin-top:0}
 table{border-collapse:collapse;width:100%;font-size:.92em}
 .scroll{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.scroll+.scroll{margin-top:12px}
 th,td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
 tbody tr:last-child td{border-bottom:0}
 tbody tr:hover td{background:var(--accent-soft)}
