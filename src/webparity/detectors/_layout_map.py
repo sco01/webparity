@@ -113,6 +113,13 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
             if ad.end() == len(k) and (abs(lb["h"] - c["h"]) >= 24 or abs(lb["w"] - c["w"]) >= 24):
                 kinds[k] = "ad"
             continue
+        if c["tag"] == "img" and "unloaded" in (lb["type"], c["type"]):
+            # A lazy image one browser hasn't loaded yet (2026-11-22): how far below the viewport loading="lazy"
+            # starts is each browser's choice (Ladybird 1,250 px, headless Chromium 2,500), so the image keeps its
+            # placeholder size in one of them - not a cause, but an explanation for the ancestors
+            if abs(lb["h"] - c["h"]) >= 24 or abs(lb["w"] - c["w"]) >= 24:
+                kinds[k] = "unloaded"
+            continue
         if c["cva"] and (abs(lb["h"] - c["h"]) >= 24 or abs(lb["w"] - c["w"]) >= 24):
             # content-visibility: auto (2026-11-10): Chromium gives the element a placeholder size off screen - not a
             # cause, but counted as an explanation so the ancestors are not pointed out
@@ -166,7 +173,7 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
     causes = []
     for k, kind in kinds.items():
         c, lb = C[k], L[k]
-        if kind in ("cv-auto", "native-width", "ad"):
+        if kind in ("cv-auto", "native-width", "ad", "unloaded"):
             continue
         if kind in ("missing", "extra") and kinds.get(c["parent"]) == kind:
             continue  # the outermost element that is missing is enough
