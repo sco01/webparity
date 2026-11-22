@@ -1105,8 +1105,9 @@ def _dechunk(body: bytes) -> bytes:
 
 
 def parse_http_response(block: bytes) -> tuple[int, list[tuple[str, str]], bytes]:
-    """(status, headers, decoded body) of an HTTP response block; gzip and deflate are decoded, other content
-    encodings (br, zstd) raise ``UnsupportedEncoding``."""
+    """(status, headers, decoded body) of an HTTP response block; gzip and deflate are decoded, br and zstd when the
+    brotli and zstandard modules are installed (the worker image has them); other encodings raise
+    ``UnsupportedEncoding``."""
     sep = block.find(b"\r\n\r\n")
     head, body = (block[:sep], block[sep + 4 :]) if sep >= 0 else (block, b"")
     lines = head.decode("iso-8859-1").split("\r\n")
@@ -1126,9 +1127,37 @@ def parse_http_response(block: bytes) -> tuple[int, list[tuple[str, str]], bytes
                 body = zlib.decompress(body)
             except zlib.error:
                 body = zlib.decompress(body, -zlib.MAX_WBITS)
+        elif coding in _DECODERS and _DECODERS[coding]() is not None:
+            try:
+                body = _DECODERS[coding]()(body)
+            except Exception as exc:  # brotli.error and zstandard.ZstdError are not ValueErrors
+                raise ValueError(f"bad {coding} body") from exc
         elif coding != "identity":
             raise UnsupportedEncoding(coding)
     return status, headers, body
+
+
+def _brotli():
+    try:
+        import brotli
+    except ImportError:
+        return None
+    return brotli.decompress
+
+
+def _zstd():
+    try:
+        from compression import zstd  # Python 3.14
+    except ImportError:
+        try:
+            import zstandard
+        except ImportError:
+            return None
+        return lambda data: zstandard.ZstdDecompressor().decompressobj().decompress(data)
+    return zstd.decompress
+
+
+_DECODERS = {"br": _brotli, "zstd": _zstd}
 
 
 @dataclass
@@ -1345,6 +1374,12 @@ def prepare_source(source: str | Path, work_dir: Path, dom: str = "ladybird", re
     warc = bundle.path / "recording.warc.gz"
     if resources and warc.exists():
         responses = load_responses(warc, notes)
+        skipped = sum(1 for n in notes if n.startswith("skipped "))
+        if skipped:
+            notes.append(
+                f"warning: {skipped} recorded responses could not be decoded and are missing offline; "
+                "the reduction may chase a different difference than the page has"
+            )
         mapping = materialize(responses, site, prefer=used)
         for url, rel in mapping.items():
             path = site / rel

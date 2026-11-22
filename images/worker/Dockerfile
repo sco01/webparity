@@ -2,9 +2,10 @@
 # The worker, the nightly chain, the web interface and the alerts: the webparity package on Debian's Python.
 # Built from the repository root: docker build -f images/worker/Dockerfile .
 # fonts-liberation: the canary's font page serves Liberation Sans to the reference.
+# python3-brotli, python3-zstandard: reduce decodes recorded responses with those content encodings.
 FROM debian:trixie-slim
 RUN apt-get update \
- && apt-get install -y --no-install-recommends python3 python3-yaml ca-certificates tini procps git fonts-liberation \
+ && apt-get install -y --no-install-recommends python3 python3-yaml python3-brotli python3-zstandard ca-certificates tini procps git fonts-liberation \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --create-home --uid 2001 webparity
 COPY src /opt/webparity/src

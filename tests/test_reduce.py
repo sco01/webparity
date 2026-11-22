@@ -313,6 +313,14 @@ def test_parse_http_response_decodes_bodies():
     status, headers, body = r.parse_http_response(deflated)
     assert status == 404 and body == b"x" and headers == [("Content-Encoding", "deflate")]
     with pytest.raises(r.UnsupportedEncoding):
+        r.parse_http_response(b"HTTP/1.1 200 OK\r\nContent-Encoding: compress\r\n\r\nxx")
+
+
+def test_parse_http_response_decodes_brotli_when_available(monkeypatch):
+    monkeypatch.setitem(r._DECODERS, "br", lambda: lambda data: data[::-1])
+    assert r.parse_http_response(b"HTTP/1.1 200 OK\r\nContent-Encoding: br\r\n\r\ncba")[2] == b"abc"
+    monkeypatch.setitem(r._DECODERS, "br", lambda: None)
+    with pytest.raises(r.UnsupportedEncoding):
         r.parse_http_response(b"HTTP/1.1 200 OK\r\nContent-Encoding: br\r\n\r\nxx")
 
 
