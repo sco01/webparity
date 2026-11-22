@@ -13,6 +13,8 @@ webparity is an independent project. It is not affiliated with or endorsed by th
 It is a rebuild, as a reusable Docker Compose stack, of the setup described in
 [How I test Ladybird](https://gist.github.com/sco01/6ec1ca5e5edbef8622fdbbe7165dd410).
 
+![The web interface: health, findings, candidates and the review page with drafts waiting to be filed](docs/images/webparity-tour.webp)
+
 ## Ground rules
 
 These are built into the defaults and apply to anyone running webparity:
