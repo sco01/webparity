@@ -316,6 +316,7 @@ class DB:
                     self.x(
                         "INSERT INTO candidates (signature, text, first_seen, last_seen, sites) VALUES (?, ?, ?, ?, ?)"
                         " ON CONFLICT(signature) DO UPDATE SET last_seen = excluded.last_seen, sites = excluded.sites,"
+                        " text = COALESCE(excluded.text, text),"
                         " note = CASE WHEN status IN ('gone', 'fixed')"
                         " THEN COALESCE(note || ' · ', '') || ? || status || ')' ELSE note END,"
                         " status = CASE WHEN status IN ('gone', 'fixed') THEN 'new' ELSE status END",

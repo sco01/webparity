@@ -33,3 +33,14 @@ def test_gone_or_fixed_candidate_comes_back_as_new(tmp_path):
     assert rows["sig-fixed"]["status"] == "new" and rows["sig-fixed"]["issue"] == "#1"
     assert rows["sig-fixed"]["note"].endswith("(was fixed)")
     assert rows["sig-dismissed"]["status"] == "dismissed" and rows["sig-filed"]["status"] == "filed"
+
+
+def test_candidate_text_follows_the_latest_finding(tmp_path):
+    db = DB(tmp_path / "webparity.db")
+    db.x("INSERT INTO sites (id, url, domain) VALUES (1, 'https://a.example/', 'a.example')")
+    db.record_visit(1, FakeBundle("v1", ["sig"]), "w", "ok", 1)
+    db.x("UPDATE candidates SET text = 'Layoutskillnad' WHERE signature = 'sig'")
+    bundle = FakeBundle("v2", ["sig"])
+    bundle.data["findings"][0]["text"] = "Layout difference"
+    db.record_visit(1, bundle, "w", "ok", 1)
+    assert db.one("SELECT text FROM candidates WHERE signature = 'sig'")[0] == "Layout difference"
