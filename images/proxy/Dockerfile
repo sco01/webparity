@@ -10,8 +10,12 @@ COPY proxy/webparity_proxy.py /opt/webparity/webparity_proxy.py
 USER 2001
 ENV WEBPARITY_CA_EXPORT=/export WEBPARITY_RECORDINGS=/data/recordings
 # connection_strategy=lazy: no upstream connection just because a browser opened a tunnel, so a replay stays offline.
+# validate_inbound_headers=false: a server that sends HTTP/2 connection-specific headers (a Connection header, as
+# do.se did) is not turned into a 502 by the proxy; Ladybird and Chromium handle such responses themselves, and the
+# proxy only serves the browsers in its own stack, so the check (against request smuggling) protects nothing here.
 # The CA key lives in the private confdir (a volume of its own); only the certificate is exported to /export.
 ENTRYPOINT ["mitmdump", "--listen-host", "127.0.0.1", "--listen-port", "8790", \
             "--set", "confdir=/home/webparity/.mitmproxy", "--set", "connection_strategy=lazy", \
             "--set", "termlog_verbosity=warn", "--set", "stream_large_bodies=50m", \
+            "--set", "validate_inbound_headers=false", \
             "-s", "/opt/webparity/webparity_proxy.py"]
