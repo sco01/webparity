@@ -336,6 +336,10 @@ def test_review_actions(setup):
     # the guards: header, origin, JSON
     assert post(base, f"/api/review/{issue_id}/reset", {}, {"X-Webparity-Review": "0"})[0] == 403
     assert post(base, f"/api/review/{issue_id}/reset", {}, {"Origin": "https://evil.example"})[0] == 403
+    host = base.split("://", 1)[1]
+    assert post(base, f"/api/review/{issue_id}/reset", {}, {"Origin": f"https://{host}"})[0] == 200  # behind TLS
+    assert post(base, f"/api/review/{issue_id}/reset", {}, {"Origin": f"http://{host}"})[0] == 200
+    assert post(base, f"/api/review/{issue_id}/reset", {}, {"Origin": f"https://{host}.evil.example"})[0] == 403
     assert post(base, f"/api/review/{issue_id}/reset", {}, {"Content-Type": "text/plain"})[0] == 415
     assert post(base, "/api/review/99999/reset", {})[0] == 404
 

@@ -3,7 +3,8 @@
 
 Everything is read-only except the review page's three actions (save a draft's fields, reset them, mark a draft as
 filed), which are POSTs of JSON to ``/api/review/<id>/<action>`` with the header ``X-Webparity-Review: 1`` and, when
-the browser sends one, an ``Origin`` equal to this server's. A page on another origin cannot send that header without
+the browser sends one, an ``Origin`` equal to this server's (``http://`` or ``https://`` and the ``Host``, so it also
+works behind a reverse proxy that terminates TLS). A page on another origin cannot send that header without
 a CORS preflight, which this server never answers, so it cannot make these requests."""
 
 from __future__ import annotations
@@ -149,7 +150,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("X-Webparity-Review") != "1":
             return self.send_json(403, {"error": "missing X-Webparity-Review header"})
         origin = self.headers.get("Origin")
-        if origin and origin != f"http://{self.headers.get('Host', '')}":
+        host = self.headers.get("Host", "")
+        # https when a reverse proxy terminates TLS in front of this server
+        if origin and origin not in (f"http://{host}", f"https://{host}"):
             return self.send_json(403, {"error": "cross-origin request"})
         if not (self.headers.get("Content-Type") or "").startswith("application/json"):
             return self.send_json(415, {"error": "JSON only"})
