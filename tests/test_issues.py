@@ -417,6 +417,12 @@ def test_verify_batches_and_firefox(env, monkeypatch):
     assert db.one("SELECT COUNT(*) FROM issues WHERE verified IS NOT NULL")[0] == 0
 
 
+def test_build_info_text_file(env):
+    config, db, _ = env
+    Path(config["ladybird"]["build_info"]).write_text("b8625076d82 2026-11-22 01:26:07\n")
+    assert verify_mod.build_info(config, db) == ("b8625076d82", "2026-11-22")
+
+
 def test_result_text():
     assert result_text("```\nok\n```\n") == "ok\n"
     assert result_text("As in Chromium and Firefox:\n\na: 1\nb: 2\n") == "a: 1\nb: 2"

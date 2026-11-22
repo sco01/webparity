@@ -25,7 +25,6 @@ right), ``not-fixed`` (closed, built, still the reported bug), ``changed`` (clos
 
 from __future__ import annotations
 
-import json
 import re
 import shutil
 import sys
@@ -126,14 +125,13 @@ def assess(item: dict, build_date: str | None) -> str:
 
 def build_info(config: dict, db: DB) -> tuple[str, str | None]:
     """(commit, date) of the Ladybird build under test: the build info file, else the latest visit's build."""
-    path = (config.get("ladybird") or {}).get("build_info")
-    if path:
-        try:
-            info = json.loads(Path(path).read_text(encoding="utf-8"))
+    from webparity.visit import build_info as read_build_info
+
+    if (config.get("ladybird") or {}).get("build_info"):
+        info = read_build_info(config)  # JSON, or the build host's text file "<commit> <date> <time>"
+        if isinstance(info, dict) and info.get("commit"):
             date = str(info.get("date") or info.get("built") or "")[:10] or None
-            return str(info.get("commit") or "")[:11], date
-        except (OSError, ValueError, AttributeError):
-            pass
+            return str(info["commit"])[:11], date
     row = db.one("SELECT build, started FROM visits WHERE build IS NOT NULL ORDER BY started DESC LIMIT 1")
     return (row["build"][:11], None) if row else ("", None)
 
