@@ -11,10 +11,12 @@ With the reference's map after its reload, elements that differ between the refe
 Elements hidden under content-visibility: hidden in the reference (a closed <details>, hidden=until-found) do not count
 either: Ladybird creates no boxes for them and measures 0 x 0, Chromium and Firefox measure them (known, 2026-11-09 -
 half of layout:missing:block>block). A file upload control's width is each browser's own choice and does not count
-either (2026-11-22).
+either (2026-11-22), nor Google's ad slots, which are filled in one browser and empty in the other (2026-11-22).
 """
 
 from __future__ import annotations
+
+import re
 
 REPLACED = {
     "img",
@@ -34,6 +36,9 @@ REPLACED = {
 }
 # Input types whose width is the browser's own choice (no specified intrinsic size)
 NATIVE_WIDTH = {"file"}
+# Google's ad slots (2026-11-22): filled in one browser and empty in the other (280 px against 0 on dagensprognos and
+# autonytt) - not compared, but an explanation for the ancestors
+AD_SLOT = re.compile(r"/(?:div|ins|aside)\.(?:google-auto-placed|adsbygoogle)(?::\d+)?(?=/|$)")
 # Only the first three screens in the reference - further down lazy loading and time-dependent content differ
 DEPTH = 2700
 
@@ -103,6 +108,11 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
         lb, c = L[k], C[k]
         if k == "body" or c["fixed"] or lb["fixed"] or c["y"] > DEPTH or c["y"] + c["h"] < 0:
             continue
+        ad = AD_SLOT.search(k)
+        if ad:
+            if ad.end() == len(k) and (abs(lb["h"] - c["h"]) >= 24 or abs(lb["w"] - c["w"]) >= 24):
+                kinds[k] = "ad"
+            continue
         if c["cva"] and (abs(lb["h"] - c["h"]) >= 24 or abs(lb["w"] - c["w"]) >= 24):
             # content-visibility: auto (2026-11-10): Chromium gives the element a placeholder size off screen - not a
             # cause, but counted as an explanation so the ancestors are not pointed out
@@ -156,7 +166,7 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
     causes = []
     for k, kind in kinds.items():
         c, lb = C[k], L[k]
-        if kind in ("cv-auto", "native-width"):
+        if kind in ("cv-auto", "native-width", "ad"):
             continue
         if kind in ("missing", "extra") and kinds.get(c["parent"]) == kind:
             continue  # the outermost element that is missing is enough
