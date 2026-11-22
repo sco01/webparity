@@ -6,7 +6,8 @@ Signatures (error unless marked info):
 - ``image-differs``: at least 15 % of the still parts of the first screenshot differ from the reference (32 px blocks;
   blocks that move between the load and idle screenshots, or between the load and the reload, in either browser are
   masked; not when more than 70 % is masked). Info when there is a layout finding - the image difference is then
-  usually a consequence of it (2026-11-09).
+  usually a consequence of it (2026-11-09), and when the difference lies inside an iframe that shows a PDF (each
+  browser has its own PDF viewer, 2026-11-22).
 - ``cookie-banner-differs`` (info): a cookie banner is shown in only one browser (instead of ``image-differs``).
 - ``blank-page``: Ladybird's screenshot is a single colour, the reference's is not.
 - ``empty-iframe`` / ``empty-canvas``: an iframe or canvas that is blank in Ladybird but not in the reference, or a
@@ -114,17 +115,39 @@ def image_findings(bundle) -> list:
             )
         )
     elif (result.get("share") or 0) >= 0.15 and (result.get("masked") or 0) <= 0.7 and not blank_page:
+        in_pdf = pdf_viewer_share(result.get("area"), dict_list(lp, "iframes") + dict_list(cp, "iframes")) >= 0.8
         out.append(
             finding(
                 "image-differs",
-                f"{round(result['share'] * 100)} % of the still parts of the screenshot differ from the reference",
-                "info" if has_layout else "error",
+                f"{round(result['share'] * 100)} % of the still parts of the screenshot differ from the reference"
+                + (" (inside an embedded PDF: each browser has its own PDF viewer)" if in_pdf else ""),
+                "info" if has_layout or in_pdf else "error",
                 share=result["share"],
                 masked=result.get("masked"),
                 area=result.get("area"),
+                pdf_viewer=in_pdf,
             )
         )
     return out
+
+
+PDF_SRC = re.compile(r"\.pdf(?:$|[?#])", re.I)
+
+
+def pdf_viewer_share(area, iframes: list) -> float:
+    """How much of the differing area (x, y, w, h) lies inside iframes that show a PDF (2026-11-22: epark.se's terms in
+    an iframe - Ladybird's PDF viewer and Chromium's look nothing alike, 26 % of the screenshot)."""
+    if not area or area[2] <= 0 or area[3] <= 0:
+        return 0.0
+    ax, ay, aw, ah = area
+    covered = 0
+    for f in iframes:
+        box = f.get("box") if isinstance(f, dict) else None
+        if not box or not PDF_SRC.search(f.get("src") or ""):
+            continue
+        x, y, w, h = box
+        covered = max(covered, max(0, min(ax + aw, x + w) - max(ax, x)) * max(0, min(ay + ah, y + h) - max(ay, y)))
+    return covered / (aw * ah)
 
 
 def font_findings(lp: dict, cp: dict) -> list:

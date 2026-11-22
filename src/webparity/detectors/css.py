@@ -135,6 +135,7 @@ class Css(Detector):
             )
         visible = any(
             f.signature.startswith(("layout:", "mobile-layout:", "image-differs"))
+            and not (f.data or {}).get("pdf_viewer")  # another PDF viewer is not the dropped declaration's doing
             for f in layout_findings(bundle) + mobile_findings(bundle) + image_findings(bundle)
         )
         if not visible:

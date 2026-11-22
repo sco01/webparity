@@ -190,3 +190,13 @@ def test_proxy_upstream_errors_mark_error_findings():
     clean = [Finding("layout:height:block>block", "error", "t")]
     proxy_errors(SimpleNamespace(data={}), clean)
     assert len(clean) == 1 and clean[0].known is None
+
+
+def test_pdf_viewer_share():
+    from webparity.detectors.image import pdf_viewer_share
+
+    pdf = {"box": [48, 331, 1344, 680], "src": "epark.example/assets/terms.pdf"}
+    page = {"box": [0, 0, 1440, 900], "src": "epark.example/widget"}
+    assert pdf_viewer_share([32, 320, 1376, 576], [pdf]) > 0.9
+    assert pdf_viewer_share([32, 320, 1376, 576], [page]) == 0
+    assert pdf_viewer_share(None, [pdf]) == 0
