@@ -95,6 +95,7 @@ for (let n = tw.nextNode(); n && textNodes < 5000; n = tw.nextNode()) {
   if (r.width === 0 || r.height === 0) { zero++; if (zeroEx.length < 5) zeroEx.push(t.slice(0, 40)); }
   else if (r.right + scrollX < -5 || r.bottom + scrollY < -5) { off++; if (offEx.length < 5) offEx.push(t.slice(0, 40)); }
 }
+const fontKey = f => `${f.family.replace(/["']/g, '')} ${f.weight === 'auto' ? 'normal' : f.weight} ${f.style === 'auto' ? 'normal' : f.style}`;
 const errFam = document.fonts ? Array.from(document.fonts).filter(f => f.status === 'error').map(f => f.family.replace(/["']/g, '').trim()) : [];
 const fontSrc = {};
 for (const s of Array.from(document.styleSheets)) { let rr; try { rr = s.cssRules; } catch (e) { continue; }
@@ -137,9 +138,11 @@ return {title: document.title.slice(0, 80), url: location.href.slice(0, 300), co
         // family, weight and style loaded (two rules for an icon font, the first with a relative path that gives 404).
         // All failing and loaded fonts (2026-11-08): font errors count only when the reference loaded the same font - otherwise
         // it is the site's 404 that Ladybird reaches because a fontconfig alias is missing (Chromium finds the font locally).
-        font_errors_all: document.fonts ? Array.from(document.fonts).filter(f => f.status === 'error').slice(0, 40).map(f => `${f.family.replace(/["']/g, '')} ${f.weight} ${f.style}`) : [],
-        fonts_loaded: document.fonts ? Array.from(document.fonts).filter(f => f.status === 'loaded').slice(0, 60).map(f => `${f.family.replace(/["']/g, '')} ${f.weight} ${f.style}`) : [],
-        font_errors_unreplaced: document.fonts ? (() => { const fs = Array.from(document.fonts), k = f => `${f.family}|${f.weight}|${f.style}`;
+        // fontKey: Ladybird reports a missing weight/style descriptor as 'auto', Chromium and Firefox as 'normal' (2026-11-22:
+        // a loaded replacement face didn't count as the same face, so font-replaced became font-error:eot)
+        font_errors_all: document.fonts ? Array.from(document.fonts).filter(f => f.status === 'error').slice(0, 40).map(fontKey) : [],
+        fonts_loaded: document.fonts ? Array.from(document.fonts).filter(f => f.status === 'loaded').slice(0, 60).map(fontKey) : [],
+        font_errors_unreplaced: document.fonts ? (() => { const fs = Array.from(document.fonts), k = fontKey;
           const ok = new Set(fs.filter(f => f.status === 'loaded').map(k)); return fs.filter(f => f.status === 'error' && !ok.has(k(f))).length; })() : null,
         // visibility (2026-11-17): a video player with two video elements in the same place hides the one it does not use -
         // in Ladybird the MSE element stayed at readyState 0 while the mp4 element played
