@@ -173,6 +173,7 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
                     or abs((lb["y"] - pl["y"]) - (c["y"] - pc["y"])) >= 40
                 ):
                     kinds[k] = "position"
+    unloaded_images = {k for k in L if k in C and C[k]["tag"] == "img" and "unloaded" in (L[k]["type"], C[k]["type"])}
     with_child = {C[k]["parent"] for k in kinds}
     # content-visibility: auto (2026-11-10): an element the reference gives a placeholder size explains its parent even
     # below DEPTH (sections at y 4,400 made a results list 2,600 px taller in Ladybird)
@@ -186,6 +187,8 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
         c, lb = C[k], L[k]
         if kind in ("cv-auto", "native-width", "ad", "unloaded", "carousel"):
             continue
+        if kind in ("missing", "extra") and any(u.startswith(k + "/") for u in unloaded_images):
+            continue  # an image inside it hasn't loaded in one browser (2026-11-22: friluftsbyn.se, a lazy map image)
         if kind in ("missing", "extra") and kinds.get(c["parent"]) == kind:
             continue  # the outermost element that is missing is enough
         if kind in ("width", "height") and k in with_child:
