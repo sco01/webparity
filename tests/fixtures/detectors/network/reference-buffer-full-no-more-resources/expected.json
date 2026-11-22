@@ -1,0 +1,9 @@
+{
+ "detector": "network",
+ "must": [
+  "resource-buffer-full"
+ ],
+ "must_not": [
+  "more-resources:"
+ ]
+}

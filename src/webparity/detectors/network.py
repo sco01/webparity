@@ -84,7 +84,11 @@ class Network(Detector):
                     resources=[lp.get("resources_total"), cp.get("resources_total")],
                 )
             )
-        # More resources of a file type (also when the buffer is full - then Ladybird's count is a floor)
+        # More resources of a file type (also when Ladybird's buffer is full - then its count is a floor). Not when
+        # the reference's is full: then the reference's count is the floor, and resources fetched after the 250th entry
+        # looked like Ladybird's extras (2026-11-22: 44 scripts against 3 on varldsarvetgastgivars.se, the same 56 in
+        # both DOMs)
+        ref_full = num(cp, "resources_total") >= BUFFER
         ref_types: dict[str, int] = {}
         for u in cp.get("resource_list") or []:
             ref_types[file_type(u)] = ref_types.get(file_type(u), 0) + 1
@@ -113,7 +117,13 @@ class Network(Detector):
                 )
             )
         for t, n in sorted(lb_types.items(), key=lambda kv: -kv[1]):
-            if t != "other" and n - ref_types.get(t, 0) >= 30 and n >= 2 * ref_types.get(t, 0) and not smaller:
+            if (
+                t != "other"
+                and n - ref_types.get(t, 0) >= 30
+                and n >= 2 * ref_types.get(t, 0)
+                and not smaller
+                and not ref_full
+            ):
                 initiator, urls = max((extra.get(t) or {"other": []}).items(), key=lambda kv: len(kv[1]))
                 out.append(
                     finding(
