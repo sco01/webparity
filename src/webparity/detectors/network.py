@@ -13,7 +13,8 @@ Signatures (error unless marked info):
 - ``fewer-resources``: fewer resources than the reference, without <link> prefetches (Speculation Rules and quicklink
   prefetch internal pages in Chromium; Ladybird doesn't prefetch).
 - ``failed-loads``: loads that failed in Ladybird (log) that the reference loaded - not those the reference failed too,
-  and not hosts that don't resolve (``reload.unresolvable_hosts``, looked up during the visit).
+  not hosts that don't resolve (``reload.unresolvable_hosts``, looked up during the visit), and not localhost or private
+  addresses.
 - ``missing-resources`` / ``missing-resources-few`` (info, one or two - nearly always tracking loaded on consent or
   timing): scripts and stylesheets from the site that only the reference fetched, not via <link> (prefetch/preload),
   only those still in the reference's final DOM, and not Elementor's lightbox/dialog/share-link (a tracking pixel's scan
@@ -63,6 +64,20 @@ def reference_network_errors(bundle, ref: str) -> set[str]:
             if u.startswith("http"):
                 out.add(resource_key(u))
     return out
+
+
+def private_host(host: str) -> bool:
+    """localhost, loopback and private addresses: a site that loads from them (2026-11-22: a development copy loading
+    from http://localhost) fails in every browser, and the proxy refuses them anyway."""
+    import ipaddress
+
+    if host in ("localhost", "") or host.endswith((".localhost", ".local")):
+        return True
+    try:
+        address = ipaddress.ip_address(host.strip("[]"))
+    except ValueError:
+        return False
+    return address.is_private or address.is_loopback or address.is_link_local
 
 
 class Network(Detector):
@@ -161,6 +176,7 @@ class Network(Detector):
             if resource_key(f["url"]) in ref_loaded
             and resource_key(f["url"]) not in ref_failed
             and not ("resolve host" in f.get("error", "") and (urlsplit(f["url"]).hostname or "") in unresolvable)
+            and not private_host(urlsplit(f["url"]).hostname or "")
         ]
         if failed:
             out.append(

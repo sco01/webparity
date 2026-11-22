@@ -83,21 +83,30 @@ NOT_UPSTREAM = re.compile(
 )
 
 
+# Errors about reaching the host at all (2026-11-22: a Cloudflare challenge host unreachable over IPv6 in both browsers,
+# with a new random path per request): judged per host. Other errors (the server closed or reset one connection) are
+# judged per address: a host that closed connections in both browsers can still have cost each browser other files.
+HOST_LEVEL = re.compile(r"connect call failed|network is unreachable|errno 101|errno 110|errno 111|timed out", re.I)
+
+
 def upstream_errors(bundle) -> list[dict]:
     """The proxy's own 502s that came from the server or the network (closed or reset connections, failed connects,
-    timeouts) and can make the browsers differ: GET requests (not beacons and telemetry POSTs), to hosts that didn't
-    fail in both browsers."""
+    timeouts) and can make the browsers differ: GET requests (not beacons and telemetry POSTs) that failed in one
+    browser only - per address, or per host for errors about reaching the host."""
     errors = [
         e
         for e in bundle.data.get("proxy_upstream_errors") or []
         if not NOT_UPSTREAM.search(e.get("error") or "") and (e.get("method") or "GET") == "GET"
     ]
-    browsers_per_host: dict[str, set[bool]] = {}
+
+    def where(e: dict) -> str:
+        url = e.get("url") or ""
+        return urlsplit(url).hostname or "" if HOST_LEVEL.search(e.get("error") or "") else url
+
+    browsers: dict[str, set[bool]] = {}
     for e in errors:
-        browsers_per_host.setdefault(urlsplit(e.get("url") or "").hostname or "", set()).add(
-            "Ladybird" in (e.get("user_agent") or "")
-        )
-    return [e for e in errors if len(browsers_per_host[urlsplit(e.get("url") or "").hostname or ""]) == 1]
+        browsers.setdefault(where(e), set()).add("Ladybird" in (e.get("user_agent") or ""))
+    return [e for e in errors if len(browsers[where(e)]) == 1]
 
 
 def proxy_errors(bundle, findings: list[Finding]) -> None:

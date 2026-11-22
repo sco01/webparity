@@ -43,7 +43,15 @@ ENDPOINTS = {
     "firefox": os.environ.get("WEBPARITY_FIREFOX", "ws://127.0.0.1:9222"),
 }
 # The same Chromium flags as the explorer: no scrollbars (the same layout width as Ladybird) and WebGL in software.
-CHROMIUM_ARGS = ["--hide-scrollbars", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"]
+# HttpsUpgrades off (2026-11-22): Chromium upgraded http:// pages to https, then blocked their http:// stylesheets as
+# mixed content (orebroastronomi.se came out unstyled), and reached sites that Ladybird and Firefox, which stay on
+# http, did not (cordate.ryttargarden.se) - all three browsers now load the address as given
+CHROMIUM_ARGS = [
+    "--hide-scrollbars",
+    "--use-angle=swiftshader",
+    "--enable-unsafe-swiftshader",
+    "--disable-features=HttpsUpgrades",
+]
 DESKTOP = (1440, 900)
 MOBILE = (390, 844)
 

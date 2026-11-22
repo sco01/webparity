@@ -244,3 +244,33 @@ def test_font_failures_explained_one_by_one():
     assert [f.signature for f in font_findings(lp, cp)] == ["font-replaced"]
     cp_uses_it = dict(cp, fonts_loaded=cp["fonts_loaded"] + ["Noto Serif 400 normal"])
     assert font_findings(lp, cp_uses_it)[0].category == "error"
+
+
+def test_closed_connections_in_both_browsers_count_per_address():
+    from types import SimpleNamespace
+
+    from webparity.detectors import upstream_errors
+
+    def err(url, ua, error="server closed connection"):
+        return {"method": "GET", "url": url, "error": error, "user_agent": ua}
+
+    data = {
+        "proxy_upstream_errors": [
+            err("https://a.example/one.css", "Ladybird/1"),
+            err("https://a.example/two.css", "Chrome/1"),
+            err("https://a.example/same.js", "Ladybird/1"),
+            err("https://a.example/same.js", "Chrome/1"),
+            err("https://c.example/x1", "Ladybird/1", "[Errno 101] Network is unreachable"),
+            err("https://c.example/x2", "Chrome/1", "[Errno 101] Network is unreachable"),
+        ]
+    }
+    kept = sorted(e["url"] for e in upstream_errors(SimpleNamespace(data=data)))
+    assert kept == ["https://a.example/one.css", "https://a.example/two.css"]
+
+
+def test_private_hosts():
+    from webparity.detectors.network import private_host
+
+    assert private_host("localhost") and private_host("127.0.0.1") and private_host("10.1.2.3")
+    assert private_host("192.168.1.5") and private_host("[::1]") and private_host("printer.local")
+    assert not private_host("example.org") and not private_host("8.8.8.8")
