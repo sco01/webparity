@@ -36,6 +36,13 @@ REPLACED = {
 }
 # Input types whose width is the browser's own choice (no specified intrinsic size)
 NATIVE_WIDTH = {"file"}
+# Carousel viewports (2026-11-22): the layout map stops at them (webparity.js.LAYOUT), but their own height is set by
+# the carousel's script and depends on when it last measured - Flickity's thumbnails on dromvavaren.se were 63 px at a
+# mobile load and 91 after a resize in every browser. Not compared, but an explanation for the ancestors (like ads).
+CAROUSEL_VIEWPORT = re.compile(
+    r"/(?:div|ul|section)\.(?:flickity-viewport|slick-list|swiper-wrapper|splide__track|owl-stage-outer|glide__track"
+    r"|carousel-inner|slideshow|n2-ss-slider-1|et_pb_slides)(?::\d+)?$|/rs-slides(?::\d+)?$"
+)
 # Google's ad slots (2026-11-22): filled in one browser and empty in the other (280 px against 0 on dagensprognos and
 # autonytt) - not compared, but an explanation for the ancestors
 AD_SLOT = re.compile(r"/(?:div|ins|aside)\.(?:google-auto-placed|adsbygoogle)(?::\d+)?(?=/|$)")
@@ -108,6 +115,10 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
         lb, c = L[k], C[k]
         if k == "body" or c["fixed"] or lb["fixed"] or c["y"] > DEPTH or c["y"] + c["h"] < 0:
             continue
+        if CAROUSEL_VIEWPORT.search(k):
+            if abs(lb["h"] - c["h"]) >= 24 or abs(lb["w"] - c["w"]) >= 24:
+                kinds[k] = "carousel"
+            continue
         ad = AD_SLOT.search(k)
         if ad:
             if ad.end() == len(k) and (abs(lb["h"] - c["h"]) >= 24 or abs(lb["w"] - c["w"]) >= 24):
@@ -173,7 +184,7 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
     causes = []
     for k, kind in kinds.items():
         c, lb = C[k], L[k]
-        if kind in ("cv-auto", "native-width", "ad", "unloaded"):
+        if kind in ("cv-auto", "native-width", "ad", "unloaded", "carousel"):
             continue
         if kind in ("missing", "extra") and kinds.get(c["parent"]) == kind:
             continue  # the outermost element that is missing is enough
