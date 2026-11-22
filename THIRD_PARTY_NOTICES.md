@@ -26,6 +26,7 @@ warcio is Apache-2.0: if anyone redistributes the proxy image, its NOTICE file m
 | Chromium (Debian) | BSD-3-Clause and others for bundled parts | reference image | copyright in `/usr/share/doc/chromium/copyright` |
 | Firefox ESR (Debian) | MPL-2.0 and others for bundled parts | reference image | copyright in `/usr/share/doc/firefox-esr/copyright`; Mozilla trademark policy applies to the name |
 | Xvfb, xauth | MIT/X11 | reference image | |
+| xdotool | BSD-3-Clause | reference image | |
 | tini | MIT | reference and worker images | |
 | Debian base `debian:trixie-slim` | Debian Free Software Guidelines; per-package copyright files | all images except proxy | |
 

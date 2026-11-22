@@ -7,6 +7,9 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends chromium chromium-driver firefox-esr xvfb xauth ca-certificates \
       python3 tini $(grep -v '^#' /tmp/font-packages.txt) \
  && rm -rf /var/lib/apt/lists/* /tmp/font-packages.txt
+# xdotool moves Xvfb's pointer out of the browser windows at start (start.sh). A layer of its own, so adding it didn't
+# reinstall the browsers above.
+RUN apt-get update && apt-get install -y --no-install-recommends xdotool && rm -rf /var/lib/apt/lists/*
 COPY fonts/local.conf /etc/fonts/local.conf
 COPY reference/start.sh /usr/local/bin/webparity-reference
 # Firefox trusts a proxy CA when one is mounted at /etc/webparity/proxy-ca.pem (enterprise policy).

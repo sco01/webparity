@@ -33,5 +33,16 @@ PROFILE=$(mktemp -d /tmp/firefox-profile.XXXXXX)
 } > "$PROFILE/user.js"
 MOZ_CRASHREPORTER_DISABLE=1 firefox-esr --no-remote --profile "$PROFILE" --remote-debugging-port="$FIREFOX_BIDI_PORT" &
 
+# Xvfb starts with the pointer in the middle of the screen, inside the browser windows: Chromium then fires a trusted
+# mousemove on every page as its window appears, and sites that load scripts on the first interaction (mousemove,
+# scroll ...) loaded them only in Chromium (2026-11-22: funktionsratt.se, missing-resources). The bottom-right corner is
+# outside the 1440 x 900 and 390 x 844 windows. Moved once the browsers run (a move right after Xvfb's socket appears
+# didn't stick), and checked.
+for _ in $(seq 1 40); do
+  xdotool mousemove 1919 1079 2>/dev/null && [ "$(xdotool getmouselocation 2>/dev/null | cut -d' ' -f1)" = "x:1919" ] && break
+  sleep 0.5
+done
+[ "$(xdotool getmouselocation 2>/dev/null | cut -d' ' -f1)" = "x:1919" ] || echo "webparity-reference: could not move the pointer" >&2
+
 # Exit (and let the container restart) as soon as any of the three stops.
 wait -n
