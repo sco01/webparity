@@ -342,6 +342,12 @@ NAV_TIMING = (
 )
 BODY_TEXT = "return (document.body && document.body.innerText || '').slice(0, 3000)"
 COUNTS = "return [document.querySelectorAll('*').length, document.body ? document.body.innerText.length : 0]"
-OUTER_HTML = "return document.documentElement.outerHTML"
+# The doctype is kept so that a reduction of the saved DOM stays in the page's rendering mode (quirks or standards)
+OUTER_HTML = (
+    "const d = document.doctype; return (d ? '<!DOCTYPE ' + d.name"
+    " + (d.publicId ? ' PUBLIC \"' + d.publicId + '\"' : '')"
+    " + (d.systemId ? (d.publicId ? '' : ' SYSTEM') + ' \"' + d.systemId + '\"' : '') + '>' : '')"
+    " + document.documentElement.outerHTML"
+)
 # A short busy loop in the page: the renderer process that gets the CPU is the page's own (see measure.cpu)
 BUSY = "const t = performance.now(); while (performance.now() - t < 300) {} return 1"

@@ -1330,6 +1330,10 @@ def rewrite_html_urls(html_text: str, base: str, mapping: dict[str, str], from_d
     return doc.render(removed=removed, start=start, inner=inner)
 
 
+# A leading doctype, after any comments and whitespace (older bundles saved the DOM without one)
+DOCTYPE = re.compile(r"\A(?:\s|<!--.*?-->)*(<!doctype[^>]*>)", re.I | re.S)
+
+
 @dataclass
 class Prepared:
     html: str
@@ -1380,6 +1384,12 @@ def prepare_source(source: str | Path, work_dir: Path, dom: str = "ladybird", re
                 f"warning: {skipped} recorded responses could not be decoded and are missing offline; "
                 "the reduction may chase a different difference than the page has"
             )
+        if not DOCTYPE.match(text) and base in responses:
+            page = _pick(responses[base], used).body.decode("utf-8", "replace")
+            m = DOCTYPE.match(page)
+            if m:
+                text = m.group(1) + "\n" + text
+                notes.append(f"the saved DOM has no doctype; using the recorded page's {m.group(1)}")
         mapping = materialize(responses, site, prefer=used)
         for url, rel in mapping.items():
             path = site / rel

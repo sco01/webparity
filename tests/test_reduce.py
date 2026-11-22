@@ -384,6 +384,20 @@ def test_prepare_source_from_a_bundle(tmp_path):
     assert any("using the ladybird DOM" in n for n in chromium.notes) and "/s/site.css" in chromium.html
 
 
+def test_prepare_source_restores_the_doctype_from_the_recording(tmp_path):
+    bundle = make_bundle(tmp_path)
+    dom = "<html><head></head><body><p id=x>hi</p></body></html>"  # saved before the DOM kept its doctype
+    (bundle / "ladybird-dom.html.gz").write_bytes(gzip.compress(dom.encode()))
+    page = b"<!-- x -->\n<!DOCTYPE html>\n<html><body>hi</body></html>"
+    with open(bundle / "recording.warc.gz", "ab") as f:
+        f.write(exchange("https://ex.com/page", "200 OK", [("Content-Type", "text/html")], page))
+    prepared = r.prepare_source(bundle, tmp_path / "work")
+    assert prepared.html.startswith("<!DOCTYPE html>\n<html>")
+    assert any("no doctype" in n for n in prepared.notes)
+    (bundle / "recording.warc.gz").write_bytes(tiny_warc())  # no recorded page: left as it is (quirks)
+    assert r.prepare_source(bundle, tmp_path / "work2").html.startswith("<html>")
+
+
 # --- the driver --------------------------------------------------------------------------------------------------
 
 
