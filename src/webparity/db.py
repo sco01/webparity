@@ -310,10 +310,16 @@ class DB:
                     (f["signature"], f["category"]),
                 )[0]
                 if table == "candidates":
+                    # A candidate that was gone (no longer on any site) or fixed comes back as new, with a note: a
+                    # finding that returns after its issue's fix is a regression, and one that was gone may be timing.
+                    back = f"back {now()[:10]} (was "
                     self.x(
                         "INSERT INTO candidates (signature, text, first_seen, last_seen, sites) VALUES (?, ?, ?, ?, ?)"
-                        " ON CONFLICT(signature) DO UPDATE SET last_seen = excluded.last_seen, sites = excluded.sites",
-                        (f["signature"], f.get("text"), now(), now(), sites),
+                        " ON CONFLICT(signature) DO UPDATE SET last_seen = excluded.last_seen, sites = excluded.sites,"
+                        " note = CASE WHEN status IN ('gone', 'fixed')"
+                        " THEN COALESCE(note || ' · ', '') || ? || status || ')' ELSE note END,"
+                        " status = CASE WHEN status IN ('gone', 'fixed') THEN 'new' ELSE status END",
+                        (f["signature"], f.get("text"), now(), now(), sites, back),
                     )
                 else:
                     self.x(

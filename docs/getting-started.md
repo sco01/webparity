@@ -63,7 +63,7 @@ docker compose run --rm worker candidates
 
 Run `webparity nightly` once a night after your Ladybird build (a cron job or systemd timer on the host calling
 `docker compose run --rm worker nightly`). It runs the canary pages, the regression sites, verifies filed issues,
-refreshes them from GitHub, retires candidates that went away and requeues candidates for the new build.
+refreshes them from GitHub, retires candidates that went away (status `gone`; a candidate that is seen again, gone or fixed, becomes `new` with a "back" note) and requeues candidates for the new build.
 
 ## More parallel visits
 
