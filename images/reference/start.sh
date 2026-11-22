@@ -3,7 +3,9 @@
 # Starts Xvfb, chromedriver and Firefox (BiDi). WEBPARITY_PROXY=host:port sends Firefox through a recording proxy;
 # Chromium gets its proxy per session from the worker.
 set -eu
-Xvfb :99 -screen 0 3000x2000x24 -nolisten tcp &
+# The same screen as Ladybird reports (1920 x 1080): pages that size things from screen.height came out differently
+# with 3000 x 2000 (2026-11-22: Rellax parallax heroes on magasinetvasteras.se and pramenvasteras.se)
+Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
 for _ in $(seq 1 50); do [ -e /tmp/.X11-unix/X99 ] && break; sleep 0.1; done
 
 chromedriver --port="$CHROMEDRIVER_PORT" --allowed-ips=127.0.0.1 &
