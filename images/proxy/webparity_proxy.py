@@ -265,6 +265,13 @@ class WebparityProxy:
         if RECORDER.mode == "replay":  # a replay never reaches the network
             ctx.log.warn(f"webparity replay: blocked a server connection to {data.server.address}")
             data.server.error = "webparity replay: offline"
+            return
+        # HTTP/1.1 to the servers: mitmproxy 12.3 keeps sending requests on an HTTP/2 connection the server has closed
+        # with GOAWAY ("RECV_HEADERS in state ConnectionState.CLOSED", mitmproxy#8580), and every one becomes a 502 – in
+        # one browser or both, so visits got differences that weren't there. Over HTTP/1.1 a closed connection is
+        # replaced by a new one. The browsers still talk HTTP/2 to the proxy where they negotiate it.
+        if not data.server.alpn_offers:
+            data.server.alpn_offers = (b"http/1.1",)
 
     def request(self, flow: http.HTTPFlow) -> None:
         # Pages must not reach the services on the shared loopback (WebDriver, this proxy's control port) or the host's

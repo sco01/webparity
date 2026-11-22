@@ -42,6 +42,12 @@ The experiments that settle the open questions from the plan before the browser 
 
 **Conclusion:** recording through mitmproxy works for Ladybird and Chromium and doesn't change the pages, only the protocol (HTTP/3 becomes HTTP/2). Firefox ignores the `proxy` capability given in BiDi `session.new`; the image must configure its proxy and CA through profile preferences (`network.proxy.*` and an imported certificate) instead. Ladybird already supports HTTP/3, so the loss of HTTP/3 through the proxy is a known measurement limit: an HTTP/3-only bug would not show. A direct (unrecorded) visit stays possible for that case.
 
+**Follow-up (2026-11-22), after the first day of production visits:** the proxy itself caused failures that showed up as differences.
+
+- **Header validation:** mitmproxy turned a server's HTTP/2 response with a `Connection` header (do.se) into a 502. Since then the proxy runs with `validate_inbound_headers=false`.
+- **Closed connections:** when a server closed an HTTP/2 connection with GOAWAY, mitmproxy kept sending requests on it, and each one failed with "RECV_HEADERS in state ConnectionState.CLOSED", which the browser got as a 502 (mitmproxy#8580, open). 202 of 3,038 visits on 2026-11-21/22 had 502s, 149 of them in only one browser. Replaying sobling.se's 183 resources three times through the old proxy gave 76 502s, and none once the proxy spoke HTTP/1.1 to the servers. The addon now offers only `http/1.1` upstream (`server_connect`), so a closed connection is simply replaced. The browsers still negotiate HTTP/2 with the proxy.
+- **What the proxy hides:** bugs in how Ladybird talks to a particular server over HTTP/2 or HTTP/3 never show through the proxy, because Ladybird talks to mitmproxy instead. #13900 (an SCB server closing Ladybird's connection with GOAWAY PROTOCOL_ERROR) reproduces without the proxy (2 of 3 loads on macOS) and never through it. Such bugs need a direct visit.
+
 ## 3. Size of a recorded visit (2026-11-21)
 
 **Question:** how much storage does recording every visit need?
