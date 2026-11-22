@@ -33,6 +33,10 @@ SECURITY_VALUE = re.compile(
 )
 SECURITY_CODE = re.compile(r"/(?:jit|gc|heap)/|LibJS/JIT|LibGC|/Heap/|asm_int|JitCompiler")
 OUT_OF_MEMORY = "out-of-memory"
+# Logged by the top document after the load and the reload (visit.py), so its WebContent process is known: exceptions
+# from other processes come from cross-site iframes (2026-11-22, reCAPTCHA's anchor frame on www.gstatic.com scripts)
+TOP_MARKER = "@@webparity-top@@"
+PROCESS = re.compile(r"\bWebContent\((\d+)\)")
 
 
 def _norm(line: str) -> str:
@@ -86,8 +90,15 @@ def parse(text: str) -> dict:
     # it when the BiDi events can't tell (see the script_error detector)
     exception_hosts: dict[str, str] = {}
     exception_stacks: dict[str, list[str]] = {}
+    exception_pids: dict[str, set[str]] = {}
+    top_pids: set[str] = set()
     last = None
     for line in text.splitlines():
+        if TOP_MARKER in line:
+            p = PROCESS.search(line)
+            if p:
+                top_pids.add(p.group(1))
+            continue
         if last is not None:
             v = re.search(r"\bat .*?https?://([^/\s):]+)", line)
             if v:
@@ -101,6 +112,9 @@ def parse(text: str) -> dict:
         if "Unhandled JavaScript exception" in line:
             m = _norm(re.sub(r".*exception( \(in promise\))?:\s*", "", line))
             exceptions[m] = exceptions.get(m, 0) + 1
+            p = PROCESS.search(line)
+            if p:
+                exception_pids.setdefault(m, set()).add(p.group(1))
             last = m
         elif "Failed load of" in line:
             m = re.search(r'Failed load of: "([^"]*)", Error: (.*?)(, Duration|$)', line)
@@ -124,6 +138,8 @@ def parse(text: str) -> dict:
         "exceptions": exceptions,
         "exception_hosts": exception_hosts,
         "exception_stacks": exception_stacks,
+        "exception_pids": {k: sorted(v) for k, v in exception_pids.items()},
+        "top_pids": sorted(top_pids),
         "failed_loads": failed,
         "missing": missing,
         "console_errors": console_errors,

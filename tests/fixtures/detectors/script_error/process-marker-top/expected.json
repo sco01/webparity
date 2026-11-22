@@ -1,0 +1,7 @@
+{
+ "detector": "script_error",
+ "must": [
+  "script-error:[Error] reCAPTCHA Timeout (C)"
+ ],
+ "must_not": []
+}

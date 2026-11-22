@@ -4,7 +4,9 @@
 Ladybird's exceptions come from its log up to the reload (``log_reload_offset``: when Ladybird leaves the page for the
 reload, visibilitychange handlers run and throw - the same happens in Chromium, where nobody sees it; 2026-11-21) and
 from the BiDi events of the steps before the reload. An exception counts only when it comes from the top document:
-BiDi tags every console entry with ``top``; an exception the events don't place falls back to the old host heuristics
+BiDi tags every console entry with ``top``; an exception the events don't place is told apart by its WebContent
+process (the top document logs a marker, see ladybird_log.TOP_MARKER; 2026-11-22: reCAPTCHA's anchor frame threw from
+www.gstatic.com, a host the top document also loads scripts from), and else falls back to the old host heuristics
 (its first stack line's host is a cross-origin frame's host, or a host the top document never fetched scripts from -
 2026-11-21: a weather widget in an iframe loaded a CDN's script that threw). The reference's exceptions are its BiDi
 ``javascript`` entries in the top document before the reload.
@@ -64,7 +66,10 @@ class ScriptError(Detector):
             return []
         ref = reference(bundle)
         lp = m(bundle, "ladybird", "probe")
-        first = ladybird_log.for_bundle(bundle)["first"]
+        parsed = ladybird_log.for_bundle(bundle)
+        first = parsed["first"]
+        top_pids = set(parsed["full"].get("top_pids") or [])
+        exception_pids = first.get("exception_pids") or {}
         exceptions = dict(first["exceptions"])
         hosts = dict(first["exception_hosts"])
         top_msgs: dict[str, int] = {}
@@ -85,6 +90,8 @@ class ScriptError(Detector):
                 return False
             if k in frame_msgs:
                 return True
+            if top_pids and exception_pids.get(k):  # the top document's WebContent process is known
+                return not (set(exception_pids[k]) & top_pids)
             h = hosts.get(k)
             return h in frame_hosts or bool(h and top_hosts and frame_hosts and h not in top_hosts and h != page_host)
 

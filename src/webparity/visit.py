@@ -127,6 +127,16 @@ def build_info(config: dict) -> dict:
         return {"commit": commit, "date": date}
 
 
+def _mark_top(handle) -> None:
+    """Logs ladybird_log.TOP_MARKER from the top document, so the log shows its WebContent process."""
+    from webparity.ladybird_log import TOP_MARKER
+
+    try:
+        handle.js(f"console.log({TOP_MARKER!r})", timeout=5)
+    except Exception:  # a page that doesn't answer: the detectors fall back to the host heuristics
+        pass
+
+
 def visit(
     url: str,
     config: dict,
@@ -188,6 +198,8 @@ def visit(
                 h = active[n]
                 bundle.add_events([compact_event(e, n, step, h.context) for e in h.events_since(positions[n])])
                 bundle.data["steps"].setdefault(step, {})[n] = timings[step]
+            if step in ("load", "reload") and "ladybird" in active:
+                _mark_top(active["ladybird"])
     finally:
         if recording:
             try:
