@@ -261,12 +261,16 @@ def _import_comment(config, db, gallery, number, draft_name, posted, counts) -> 
         return
     draft = str(_copy_draft(config, gallery_draft, {"kind": "comment", "comment_on": number, "posted": posted or ""}))
     note = f"comment on #{number}"
-    row = db.one("SELECT id, state FROM issues WHERE draft = ?", (draft,))
+    row = db.one("SELECT id, state, note FROM issues WHERE draft = ?", (draft,))
     if row is None:
         db.x(
             "INSERT INTO issues (draft, kind, state, filed, note, created) VALUES (?, 'comment', 'posted', ?, ?, ?)",
             (draft, posted, note, now()),
         )
-    elif row["state"] in ("draft", "withdrawn"):
-        db.x("UPDATE issues SET state = 'posted', filed = ?, note = ? WHERE id = ?", (posted, note, row["id"]))
+    elif row["state"] in ("draft", "withdrawn") or (row["note"] or "").startswith(QUEUE_NOTE):
+        # Also a comment already marked as posted in review: registered now, so it leaves the queue (no undo)
+        db.x(
+            "UPDATE issues SET state = 'posted', filed = COALESCE(?, filed), note = ?, review_mark = NULL WHERE id = ?",
+            (posted, note, row["id"]),
+        )
     counts["comments"] += 1

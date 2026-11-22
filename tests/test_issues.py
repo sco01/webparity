@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from webparity.db import DB
+from webparity.issues import review
 from webparity.issues import verify as verify_mod
 from webparity.issues.common import split_front_matter, split_source, update_front_matter
 from webparity.issues.drafts import check_draft, create_draft
@@ -560,8 +561,12 @@ def test_import_gallery(env):
     )
     text = text.replace("| 1 | 3 | [q.md](q.md) | x |\n", "").replace("(draft)", "– POSTED 2026-11-22")
     index.write_text(text)
+    review.mark(config, db, unposted["id"], 100)  # marked as posted in review before it was registered
     import_gallery(config, db, gallery)
     assert db.one("SELECT COUNT(*) FROM issues")[0] == 7
+    marked = db.one("SELECT * FROM issues WHERE id = ?", (unposted["id"],))
+    assert marked["review_mark"] is None and marked["note"] == "comment on #100"
+    assert unposted["id"] not in {r["id"] for r in review.rows(db)}
     filed = db.one("SELECT * FROM issues WHERE id = ?", (queued["id"],))
     assert filed["number"] == 300 and filed["state"] == "filed"
     assert db.one("SELECT state FROM issues WHERE id = ?", (unposted["id"],))["state"] == "posted"
