@@ -200,6 +200,49 @@ def sparkline(points: list[tuple[str, int]]) -> str:
 # --- pages ---------------------------------------------------------------------------------------------------------
 
 
+# Keys in a nightly step's summary that aren't results (per-site details, file paths)
+NIGHTLY_SKIP = {"seconds", "signatures", "path", "date"}
+
+
+def _nightly_value(key: str, value) -> str | None:
+    label = key.replace("_", " ")
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return f"{label} {value:g}"
+    if isinstance(value, str):
+        return f"{label} {value}"
+    if isinstance(value, (list, tuple)):
+        return f"{label} {len(value)}"
+    if isinstance(value, dict):
+        parts = [_nightly_value(k, v) for k, v in value.items() if k not in NIGHTLY_SKIP]
+        parts = [x for x in parts if x]
+        return f"{label}: " + ", ".join(parts) if parts else None
+    return None
+
+
+def nightly_steps(summary: str | None) -> list[tuple[str, str, str]] | None:
+    """The nightly run's summary (JSON, one object per step) as (step, result, seconds) rows; None if it isn't JSON."""
+    try:
+        data = json.loads(summary or "")
+    except ValueError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    rows = []
+    for step, value in data.items():
+        if isinstance(value, dict):
+            parts = [_nightly_value(k, v) for k, v in value.items() if k not in NIGHTLY_SKIP]
+            seconds = value.get("seconds")
+            rows.append((step, ", ".join(x for x in parts if x) or "-", "" if seconds is None else f"{seconds:g}"))
+        elif step == "failed_steps":
+            rows.append((step.replace("_", " "), ", ".join(map(str, value)) or "none", ""))
+        else:
+            text = _nightly_value(step, value)
+            rows.append((step, text or "-", ""))
+    return rows
+
+
 def health(config: dict, db, now: float | None = None) -> str:
     now = time.time() if now is None else now
     last_hour = metrics.visits_last_hour(db, now)
@@ -262,18 +305,28 @@ def health(config: dict, db, now: float | None = None) -> str:
     else:
         out.append(
             table(
-                ["Run", "Started", "Finished", "Status", "Summary"],
+                ["Run", "Started", "Finished", "Status"],
                 [
                     [
                         esc(nightly["id"]),
                         esc(nightly["started"]),
                         esc(nightly["finished"]),
                         f'<span class="{nightly_css}">{esc(nightly["status"])}</span>',
-                        f'<span class="wrap">{esc((nightly["summary"] or "")[:500])}</span>',
                     ]
                 ],
             )
         )
+        steps = nightly_steps(nightly["summary"])
+        if steps is None:
+            out.append(f'<pre class="wrap">{esc((nightly["summary"] or "")[:500])}</pre>')
+        elif steps:
+            out.append(
+                table(
+                    ["Step", "Result", "Seconds"],
+                    [[esc(name), esc(text), esc(seconds)] for name, text, seconds in steps],
+                    numeric={2},
+                )
+            )
         out.append(f'<p class="muted">Last successful: {esc(metrics.ts(last_ok)) if last_ok else "never"}</p>')
 
     out.append("<h2>Visits by status (24 h)</h2>")

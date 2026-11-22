@@ -361,3 +361,24 @@ def test_review_actions(setup):
     assert updated["state"] == "draft" and updated["number"] is None
     assert post(base, f"/api/review/{issue_id}/mark", {"number": "9001"})[0] == 400
     assert DRAFT == (tmp / "drafts" / "case.md").read_text()  # the draft file is never written
+
+
+def test_nightly_steps_reads_the_summary():
+    import json
+
+    from webparity.web.pages import nightly_steps
+
+    summary = {
+        "build": {"commit": "abc123", "date": "2026-11-22 01:26:07", "seconds": 0.1},
+        "canary": {"pages": 29, "failed": [], "seconds": 643.1},
+        "regression": {"sites": 70, "new": [], "signatures": {"https://a.example/": []}, "seconds": 1206.5},
+        "verify": {"issues": 44, "results": {"fixed": 1, "still-broken": 16}, "seconds": 222.0},
+        "failed_steps": [],
+    }
+    rows = nightly_steps(json.dumps(summary))
+    assert rows[0] == ("build", "commit abc123", "0.1")
+    assert rows[1] == ("canary", "pages 29, failed 0", "643.1")
+    assert rows[2] == ("regression", "sites 70, new 0", "1206.5")
+    assert rows[3] == ("verify", "issues 44, results: fixed 1, still-broken 16", "222")
+    assert rows[4] == ("failed steps", "none", "")
+    assert nightly_steps("not json") is None
