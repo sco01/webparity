@@ -410,13 +410,12 @@ def cmd_watch(args) -> int:
 
 
 def cmd_verify(args) -> int:
-    from webparity.issues.verify import verify
+    from webparity.issues.verify import format_report, verify
 
     cfg = _config(args)
     numbers = [int(n.lstrip("#")) for n in args.numbers] or None
-    from webparity.issues.verify import format_report
-
-    print(format_report(verify(cfg, _db(cfg), numbers, include_verified=bool(numbers))))
+    items = verify(cfg, _db(cfg), numbers, include_verified=bool(numbers))
+    print(format_report(items, next((i["build"] for i in items if i.get("build")), "")))
     return 0
 
 
