@@ -238,9 +238,11 @@ def visit(
 
 def reanalyze(bundle: Bundle, known=None, only: list[str] | None = None) -> tuple[list[dict], list[dict], list[dict]]:
     """Runs the detectors again; returns (gone, new, all) findings compared with what the bundle had."""
-    before = {(f["signature"], f["category"]) for f in bundle.data.get("findings", [])}
+    # With ``only``, compare with those detectors' earlier findings alone (the others were not run again)
+    earlier = [f for f in bundle.data.get("findings", []) if not only or f.get("detector") in only]
+    before = {(f["signature"], f["category"]) for f in earlier}
     findings = [f.to_dict() for f in analyze(bundle, only=only, known=known)]
     after = {(f["signature"], f["category"]) for f in findings}
-    gone = [f for f in bundle.data.get("findings", []) if (f["signature"], f["category"]) not in after]
+    gone = [f for f in earlier if (f["signature"], f["category"]) not in after]
     new = [f for f in findings if (f["signature"], f["category"]) not in before]
     return gone, new, findings
