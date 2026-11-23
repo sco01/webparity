@@ -857,3 +857,25 @@
       if (ok && m >= 8) return 'empty block with a ' + m + 'px margin in ' + (e.classList[0] || e.tagName.toLowerCase());
     }
     return false;
+
+# 2026-11-23: CSS Syntax: inside a block (@layer, @media, a style rule), a rule whose prelude has a semicolon ends at
+# the semicolon and parsing goes on after it ("consume a block's contents" uses <semicolon-token> as the stop token).
+# Ladybird does this; Chromium and Firefox drop the whole rule. WordPress custom CSS stored with ">" escaped as "&gt;"
+# inside @layer theme { ... } on helsingborgskonsthall.se: ".card &gt; * { flex-shrink: 0 }" became "* { flex-shrink:
+# 0 }" in Ladybird only. Runs in the reference browser: an inline style sheet with "&gt;" inside a block.
+- id: semicolon-ends-rule-in-block
+  issue: "known:semicolon-ends-rule-in-block"
+  text: "a semicolon ends an invalid rule inside a block, so the text after it becomes a rule (CSS Syntax; Ladybird only)"
+  prefix: ["layout:", "mobile-layout:"]
+  js: |
+    for (const s of document.querySelectorAll('style')) {
+      const t = s.textContent; if (!t.includes('&gt;') && !t.includes('&lt;')) continue;
+      let depth = 0;
+      for (let i = 0; i < t.length; i++) {
+        const ch = t[i];
+        if (ch === '{') depth++;
+        else if (ch === '}') depth = Math.max(0, depth - 1);
+        else if (ch === '&' && depth >= 1 && /^&(gt|lt);/.test(t.slice(i, i + 4))) return 'escaped selector in a block: ' + t.slice(Math.max(0, i - 40), i + 8).replace(/\s+/g, ' ');
+      }
+    }
+    return false;
