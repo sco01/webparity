@@ -154,6 +154,10 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
         lb, c = L[k], C[k]
         if k == "body" or c["fixed"] or lb["fixed"] or c["y"] > DEPTH or c["y"] + c["h"] < 0:
             continue
+        if c["x"] + c["w"] < 0 and lb["x"] + lb["w"] < 0:
+            # Parked off the page to the left in both (2026-11-23: Astra's header cart drop-down at x -14,428 on
+            # betong.se and betongforeningen.se, 12 px lower in one browser) - not visible, not compared
+            continue
         if CAROUSEL_VIEWPORT.search(k):
             if abs(lb["h"] - c["h"]) >= 24 or abs(lb["w"] - c["w"]) >= 24:
                 kinds[k] = "carousel"
