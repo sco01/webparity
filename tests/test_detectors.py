@@ -274,3 +274,11 @@ def test_private_hosts():
     assert private_host("localhost") and private_host("127.0.0.1") and private_host("10.1.2.3")
     assert private_host("192.168.1.5") and private_host("[::1]") and private_host("printer.local")
     assert not private_host("example.org") and not private_host("8.8.8.8")
+
+
+def test_private_resources_are_skipped_only_on_public_pages():
+    from webparity.detectors.network import public_page_private_resource as skip
+
+    assert skip("http://localhost/a.js", "https://example.org/")
+    assert not skip("http://10.0.0.5:8080/fail.js", "http://10.0.0.5:8080/canary/")  # the canary
+    assert not skip("https://example.org/a.js", "https://example.org/")

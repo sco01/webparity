@@ -80,6 +80,12 @@ def private_host(host: str) -> bool:
     return address.is_private or address.is_loopback or address.is_link_local
 
 
+def public_page_private_resource(resource_url: str, page_url: str) -> bool:
+    """A resource on a private host loaded by a page on a public one. A page served from a private host itself (the
+    canary) is judged as usual."""
+    return private_host(urlsplit(resource_url).hostname or "") and not private_host(urlsplit(page_url).hostname or "")
+
+
 class Network(Detector):
     name = "network"
     description = "More, fewer, failed and missing resources; fetch loops; self-navigation"
@@ -176,7 +182,7 @@ class Network(Detector):
             if resource_key(f["url"]) in ref_loaded
             and resource_key(f["url"]) not in ref_failed
             and not ("resolve host" in f.get("error", "") and (urlsplit(f["url"]).hostname or "") in unresolvable)
-            and not private_host(urlsplit(f["url"]).hostname or "")
+            and not public_page_private_resource(f["url"], lp.get("url") or cp.get("url") or "")
         ]
         if failed:
             out.append(
