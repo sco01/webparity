@@ -155,7 +155,9 @@ def test_candidates_page(setup):
     status, _, body = get(setup["base"], "/candidates")
     text = body.decode()
     assert status == 200
-    assert text.index("crash:WebContent:SIGSEGV") < text.index("js:TypeError")  # sorted by sites
+    # sorted by sites in the last 24 hours (js:TypeError has a recent finding), then by all sites
+    assert text.index("js:TypeError") < text.index("crash:WebContent:SIGSEGV")
+    assert "Sites 24 h" in text
     assert 'href="https://github.com/LadybirdBrowser/ladybird/issues/1234"' in text
     assert_escaped(body)
     filtered = get(setup["base"], "/candidates?status=filed")[2].decode()

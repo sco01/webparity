@@ -437,7 +437,19 @@ def candidates(config: dict, db, status: str = "") -> str:
     if status:
         sql += " WHERE status = ?"
         args.append(status)
-    rows = db.q(sql + " ORDER BY sites DESC, last_seen DESC LIMIT 1000", args)
+    rows = db.q(sql + " LIMIT 5000", args)
+    # Sites with the finding in the last 24 hours: the total counts history too, so a dismissed artefact with a long
+    # past (scroll-locked, 2026-11-23) would otherwise top the list
+    since = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() - 86400))
+    recent = {
+        r[0]: r[1]
+        for r in db.q(
+            "SELECT f.signature, COUNT(DISTINCT f.site) FROM findings f JOIN visits v ON v.id = f.visit"
+            " WHERE v.started >= ? AND f.category = 'error' GROUP BY f.signature",
+            (since,),
+        )
+    }
+    rows = sorted(rows, key=lambda r: (-recent.get(r["signature"], 0), -(r["sites"] or 0), r["signature"]))[:1000]
     statuses = sorted(set(CANDIDATE_STATUSES) | {r[0] for r in db.q("SELECT DISTINCT status FROM candidates")})
     links = " ".join(
         f'<a href="{url_query("/candidates", status=s)}"{" aria-current=page" if s == status else ""}>{esc(s or "all")}'
@@ -447,10 +459,11 @@ def candidates(config: dict, db, status: str = "") -> str:
     out = ["<h1>Candidates</h1>", f'<nav class="tabs" aria-label="Status">{links}</nav>']
     out.append(
         table(
-            ["Signature", "Sites", "Status", "Issue", "First seen", "Last seen", "Text"],
+            ["Signature", "Sites 24 h", "Sites", "Status", "Issue", "First seen", "Last seen", "Text"],
             [
                 [
                     f'<a class="mono wrap" href="{url_path("candidates", r["signature"])}">{esc(r["signature"])}</a>',
+                    esc(recent.get(r["signature"], 0)),
                     esc(r["sites"]),
                     status_chip(r["status"]),
                     issue_link(config, r["issue"]),
@@ -460,7 +473,7 @@ def candidates(config: dict, db, status: str = "") -> str:
                 ]
                 for r in rows
             ],
-            numeric={1},
+            numeric={1, 2},
             empty="No candidates.",
         )
     )
