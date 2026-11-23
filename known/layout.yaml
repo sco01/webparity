@@ -879,3 +879,14 @@
       }
     }
     return false;
+
+# 2026-11-23: the Uncode theme puts "chrome" on <html> when the user agent has Chrome (Ladybird's does) and then
+# sets height: 0 on its table-cell columns, whose children have height: 100%. Chromium grows the cell to the content;
+# Ladybird and Firefox resolve 100% against 0, so whole rows are 0 px high (26 sites since 2026-11-19). Runs in the
+# reference browser: Uncode's markup with the chrome class.
+- id: uncode-chrome-hack
+  issue: "draft:uncode-chrome-hack"
+  text: "the Uncode theme's Chrome-only CSS (height: 0 on table-cell columns with height: 100% children)"
+  prefix: ["layout:", "mobile-layout:"]
+  js: |
+    return document.documentElement.classList.contains('chrome') && !!document.querySelector('.uncoltable, .uncol') ? 'Uncode with the chrome class' : false;
