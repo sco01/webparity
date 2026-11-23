@@ -182,7 +182,7 @@ return {title: document.title.slice(0, 80), url: location.href.slice(0, 300), co
 LAYOUT = r"""
 const MAX = 4000, out = [], REPLACED = /^(IMG|SVG|VIDEO|IFRAME|INPUT|BUTTON|SELECT|TEXTAREA|CANVAS|OBJECT|EMBED|AUDIO|PROGRESS|METER)$/;
 const SKIP = /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|LINK|META|HEAD|TITLE|BR|WBR)$/;
-const CAROUSEL = ['flickity-viewport', 'slick-list', 'swiper-wrapper', 'splide__track', 'owl-stage-outer', 'glide__track', 'carousel-inner', 'slideshow', 'n2-ss-slider-1', 'et_pb_slides', 'uk-slideshow-items', 'uk-slider-items'];
+const CAROUSEL = ['flickity-viewport', 'slick-list', 'swiper-wrapper', 'splide__track', 'owl-stage-outer', 'glide__track', 'carousel-inner', 'slideshow', 'n2-ss-slider-1', 'et_pb_slides', 'uk-slideshow-items', 'uk-slider-items', 'slideshow-container'];
 // jQuery Cycle marks the slides, not the viewport (2026-11-22: byggnyheter's header)
 const CAROUSEL_SLIDE = 'cycle-slide';
 const honeypot = b => { const r = b.getBoundingClientRect(); if (r.width > 1 || r.height > 1) return false;

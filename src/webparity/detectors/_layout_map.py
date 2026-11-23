@@ -40,9 +40,11 @@ NATIVE_WIDTH = {"file"}
 # the carousel's script and depends on when it last measured - Flickity's thumbnails on dromvavaren.se were 63 px at a
 # mobile load and 91 after a resize in every browser. Not compared, but an explanation for the ancestors (like ads).
 # UIkit's slideshow and slider (2026-11-23: asb-executive.se, an autoplaying slideshow on another slide in each one).
+# w3schools' slideshow (2026-11-23: byggbeskrivningar.se and fixatrixa.se, another .mySlides shown in each browser).
 CAROUSEL_VIEWPORT = re.compile(
     r"/(?:div|ul|section)\.(?:flickity-viewport|slick-list|swiper-wrapper|splide__track|owl-stage-outer|glide__track"
-    r"|carousel-inner|slideshow|n2-ss-slider-1|et_pb_slides|uk-slideshow-items|uk-slider-items)(?::\d+)?$"
+    r"|carousel-inner|slideshow|n2-ss-slider-1|et_pb_slides|uk-slideshow-items|uk-slider-items|slideshow-container)"
+    r"(?::\d+)?$"
     r"|/rs-slides(?::\d+)?$"
 )
 # Media players' "loaded" bars (2026-11-23: MediaElement.js on mittzoo.se, 425 px in Ladybird against 26 in
