@@ -890,3 +890,18 @@
   prefix: ["layout:", "mobile-layout:"]
   js: |
     return document.documentElement.classList.contains('chrome') && !!document.querySelector('.uncoltable, .uncol') ? 'Uncode with the chrome class' : false;
+
+# 2026-11-23: a rendered <legend> with width: auto ignores max-width in Ladybird (MUI's outlined text fields: the
+# legend has max-width: 0.01px until the label floats, 0 px wide in Chromium and Firefox, its text's width in
+# Ladybird - lagsajten.se, portal.dseg.se). Runs in the reference browser: a legend whose content is wider than its
+# max-width.
+- id: legend-max-width
+  issue: "#15385"
+  text: "a rendered legend ignores max-width (Material UI's outlined text fields)"
+  prefix: ["layout:", "mobile-layout:"]
+  js: |
+    for (const l of document.querySelectorAll('fieldset > legend')) {
+      const m = parseFloat(getComputedStyle(l).maxWidth);
+      if (!isNaN(m) && l.scrollWidth > m + 1) return 'legend content ' + l.scrollWidth + ' px, max-width ' + m + ' px';
+    }
+    return false;
