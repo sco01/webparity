@@ -165,6 +165,10 @@ MIGRATIONS: list[str] = [
     """
     ALTER TABLE sites ADD COLUMN server TEXT
     """,
+    # 6: a queued site is not taken before this time (a server that refused connections gets a rest)
+    """
+    ALTER TABLE sites ADD COLUMN not_before TEXT
+    """,
 ]
 
 # A site's host: its domain up to the first "/" (sub pages are sites of their own, "host/path")
@@ -265,7 +269,8 @@ class DB:
         candidates = []
         cursor = self.conn.execute(
             f"SELECT s.id, {host_s} AS host FROM sites s WHERE s.status = 'queued' AND NOT {busy_host}"
-            " ORDER BY s.priority DESC, s.id"
+            " AND (s.not_before IS NULL OR s.not_before <= ?) ORDER BY s.priority DESC, s.id",
+            (now(),),
         )
         for row in cursor:
             d = registrable(row["host"])
@@ -318,6 +323,21 @@ class DB:
         return self.x(
             "UPDATE sites SET status = 'queued', worker = NULL WHERE status = 'visiting' AND claimed_at < ?", (cutoff,)
         ).rowcount
+
+    def rest(self, site_id: int, hours: float) -> int:
+        """Queues the site again, and with it every queued site on its server, not before ``hours`` from now."""
+        until = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(time.time() + hours * 3600))
+        row = self.one("SELECT server FROM sites WHERE id = ?", (site_id,))
+        self.x("UPDATE sites SET status = 'queued', worker = NULL, not_before = ? WHERE id = ?", (until, site_id))
+        if row is None or not row["server"]:
+            return 1
+        return (
+            1
+            + self.x(
+                "UPDATE sites SET not_before = ? WHERE status = 'queued' AND server = ? AND id != ?",
+                (until, row["server"], site_id),
+            ).rowcount
+        )
 
     def finish_site(self, site_id: int, status: str, visit_id: str | None) -> None:
         self.x(

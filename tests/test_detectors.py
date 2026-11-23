@@ -282,3 +282,46 @@ def test_private_resources_are_skipped_only_on_public_pages():
     assert skip("http://localhost/a.js", "https://example.org/")
     assert not skip("http://10.0.0.5:8080/fail.js", "http://10.0.0.5:8080/canary/")  # the canary
     assert not skip("https://example.org/a.js", "https://example.org/")
+
+
+def test_a_server_refusing_connections_makes_the_visit_unreliable():
+    from types import SimpleNamespace
+
+    from webparity.detectors import PROXY_KNOWN, proxy_errors, server_refused
+
+    refused = "Multiple exceptions: [Errno 111] Connect call failed ('192.0.2.40', 443)"
+    data = {
+        "url": "https://shop.example/",
+        "proxy_upstream_errors": [
+            {"url": "https://shop.example/css/frontend.min.css", "error": refused, "user_agent": "Ladybird/1.0"},
+            {"url": "https://shop.example/css/icons.css", "error": refused, "user_agent": "Chrome/1"},
+        ],
+    }
+    findings = [Finding("css-rules", "error", "t")]
+    proxy_errors(SimpleNamespace(data=data), findings)
+    assert findings[0].known == PROXY_KNOWN  # each browser lost a different file of the page's own site
+    assert server_refused(SimpleNamespace(data=data))
+    tracker = {
+        "url": "https://shop.example/",
+        "proxy_upstream_errors": [{"url": "https://t.example/p", "error": refused}],
+    }
+    assert not server_refused(SimpleNamespace(data=tracker))
+
+
+def test_a_site_on_a_refusing_server_rests(tmp_path):
+    from webparity.db import DB
+
+    db = DB(tmp_path / "w.db")
+    for i, (domain, server) in enumerate(
+        [("a.example", "192.0.2.1"), ("b.example", "192.0.2.1"), ("c.example", "192.0.2.9")], 1
+    ):
+        db.x(
+            "INSERT INTO sites (id, url, domain, priority, server) VALUES (?, ?, ?, 25, ?)",
+            (i, f"https://{domain}/", domain, server),
+        )
+    servers = {"a.example": "192.0.2.1", "b.example": "192.0.2.1", "c.example": "192.0.2.9"}
+    site = db.claim("w1", resolve=servers.get)
+    assert site["domain"] == "a.example"
+    assert db.rest(site["id"], 6) == 2  # a.example and b.example on the same server
+    assert db.claim("w1", resolve=servers.get)["domain"] == "c.example"
+    assert db.claim("w2", resolve=servers.get) is None

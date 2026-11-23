@@ -125,7 +125,7 @@ class Browsers:
 
 def run(config: dict, once: bool = False, worker_name: str | None = None) -> int:
     from webparity import visit as visit_mod
-    from webparity.detectors import upstream_errors
+    from webparity.detectors import server_refused, upstream_errors
     from webparity.known import Known
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -174,10 +174,17 @@ def run(config: dict, once: bool = False, worker_name: str | None = None) -> int
             ]
             blocked = any(bundle.m(n, "probe", "blocked") for n in bundle.data["browsers"] if n != "ladybird")
             status = "candidate" if errors else ("blocked" if blocked else "clean")
-            if upstream_errors(bundle) and site["attempts"] < 3:
-                # The proxy lost responses (see detectors.proxy_errors): measure again rather than trust this visit
+            refused = server_refused(bundle)
+            if (refused or upstream_errors(bundle)) and site["attempts"] < 3:
+                # The proxy lost responses (see detectors.proxy_errors): measure again rather than trust this visit -
+                # but not at once: a server that refused connections is limiting us (2026-11-23), so it and every
+                # site on it rest for six hours; other lost responses wait half an hour
+                db.finish_site(site["id"], "queued", bundle.id)
+                n = db.rest(site["id"], 6 if refused else 0.5)
+                log.info("%s: %s, queued again later (%d sites)", site["domain"], "refused" if refused else "lost", n)
                 status = "queued"
-            db.finish_site(site["id"], status, bundle.id)
+            else:
+                db.finish_site(site["id"], status, bundle.id)
             if status != "blocked":
                 try:
                     found = discoverer.visit(bundle.data)
