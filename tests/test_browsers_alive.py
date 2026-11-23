@@ -13,3 +13,9 @@ def test_a_session_whose_command_timed_out_is_not_alive():
     assert not h.alive()
     h.session.client.timeouts, h.session.client._closed = 0, OSError("gone")
     assert not h.alive()
+
+
+def test_a_timed_out_command_is_not_a_crash():
+    h = Handle("ladybird", "http://x")
+    h.session = SimpleNamespace(client=SimpleNamespace(_closed=None, timeouts=1))
+    assert h.connected() and h.timed_out() and not h.alive()

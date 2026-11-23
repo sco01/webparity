@@ -220,7 +220,10 @@ def visit(
             bundle.write_file(f"crash-report-{i + 1}.txt", Path(report).read_bytes())
         except OSError:
             pass
-    bundle.data["alive"] = {n: h.alive() for n, h in handles.items()}
+    # "alive" is whether the connection is still open - a closed one counts as a crash (ladybird_log.for_bundle);
+    # a command without an answer is not a crash (2026-11-23: 113 false "crash:unknown location" findings)
+    bundle.data["alive"] = {n: h.connected() for n, h in handles.items()}
+    bundle.data["timed_out"] = {n: h.timed_out() for n, h in handles.items()}
     timings["measure"] = round(time.time() - started, 1)
     t0 = time.time()
     findings = analyze(bundle, known=known)

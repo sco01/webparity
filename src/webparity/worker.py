@@ -112,8 +112,8 @@ class Browsers:
     def after_visit(self, bundle) -> None:
         self.visits += 1
         # A crashed Ladybird or a failed step leaves a session in an unknown state: start fresh next time
-        for name, alive in (bundle.data.get("alive") or {}).items():
-            if not alive and name in self.handles:
+        for name in list(self.handles):
+            if not self.handles[name].alive() or (bundle.data.get("alive") or {}).get(name) is False:
                 self.handles.pop(name).stop()
 
     def stop(self) -> None:

@@ -104,10 +104,18 @@ class Handle:
                 pass
             self.session = None
 
+    def connected(self) -> bool:
+        """The connection to the browser is open (a crashed Ladybird closes it)."""
+        client = self.session.client if self.session is not None else None
+        return client is not None and client._closed is None
+
+    def timed_out(self) -> bool:
+        """A command got no answer (the session may be stuck, though the browser hasn't crashed)."""
+        return bool(self.session is not None and getattr(self.session.client, "timeouts", 0))
+
     def alive(self) -> bool:
         """The connection is open and every command got an answer; otherwise the worker starts a fresh session."""
-        client = self.session.client if self.session is not None else None
-        return client is not None and client._closed is None and not getattr(client, "timeouts", 0)
+        return self.connected() and not self.timed_out()
 
     # --- events ---------------------------------------------------------------------------------------------------
     def event_pos(self) -> int:
