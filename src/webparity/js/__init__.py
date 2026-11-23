@@ -191,9 +191,11 @@ const stable = x => x && /^[A-Za-z][\w-]{0,40}$/.test(x) && !/\d{3,}|[0-9a-f]{6,
 // Images (2026-11-23): 'unloaded', or for an image with candidates (srcset, <picture>) the file it shows - the spec
 // lets a browser pick another candidate than sizes asks for, and Chromium takes one it already has (aquaexpert.se: the
 // 400x250 crop from the desktop step kept in the mobile step, where Ladybird took the full image of another shape).
+// With its natural width, for one file listed as both 1x and 2x (Avada's logos: Chromium takes 2x, Ladybird and
+// Firefox 1x, so the logo is twice as large in them).
 const imgType = e => !(e.complete && e.naturalWidth) ? 'unloaded'
   : (e.srcset || (e.parentElement && e.parentElement.tagName === 'PICTURE'))
-    ? 'src:' + (e.currentSrc || '').split(/[?#]/)[0].split('/').pop().slice(0, 80) : '';
+    ? 'src:' + (e.currentSrc || '').split(/[?#]/)[0].split('/').pop().slice(0, 80) + ' ' + e.naturalWidth : '';
 if (!document.body) return [];
 const sx = scrollX, sy = scrollY;
 const stack = [[document.body, '', -1]];
