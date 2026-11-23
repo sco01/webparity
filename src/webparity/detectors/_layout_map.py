@@ -45,6 +45,13 @@ CAROUSEL_VIEWPORT = re.compile(
     r"|carousel-inner|slideshow|n2-ss-slider-1|et_pb_slides|uk-slideshow-items|uk-slider-items)(?::\d+)?$"
     r"|/rs-slides(?::\d+)?$"
 )
+# Media players' "loaded" bars (2026-11-23: MediaElement.js on mittzoo.se, 425 px in Ladybird against 26 in
+# Chromium): their width is how much of the video has been downloaded, which depends on the network and how each
+# browser buffers - not compared, but an explanation for the ancestors (like ads)
+BUFFER_BAR = re.compile(
+    r"/span\.mejs-time-(?:loaded|buffering)(?::\d+)?$|/div\.vjs-load-progress(?::\d+)?$"
+    r"|/progress\.plyr__progress__buffer(?::\d+)?$"
+)
 # Google's ad slots (2026-11-22): filled in one browser and empty in the other (280 px against 0 on dagensprognos and
 # autonytt) - not compared, but an explanation for the ancestors
 AD_SLOT = re.compile(r"/(?:div|ins|aside)\.(?:google-auto-placed|adsbygoogle)(?::\d+)?(?=/|$)")
@@ -145,6 +152,10 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
             if abs(lb["h"] - c["h"]) >= 24 or abs(lb["w"] - c["w"]) >= 24:
                 kinds[k] = "carousel"
             continue
+        if BUFFER_BAR.search(k):
+            if abs(lb["h"] - c["h"]) >= 24 or abs(lb["w"] - c["w"]) >= 24:
+                kinds[k] = "buffer"
+            continue
         ad = AD_SLOT.search(k)
         if ad:
             if ad.end() == len(k) and (abs(lb["h"] - c["h"]) >= 24 or abs(lb["w"] - c["w"]) >= 24):
@@ -221,7 +232,7 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
     causes = []
     for k, kind in kinds.items():
         c, lb = C[k], L[k]
-        if kind in ("cv-auto", "native-width", "ad", "unloaded", "carousel", "text-wrap"):
+        if kind in ("cv-auto", "native-width", "ad", "unloaded", "carousel", "text-wrap", "buffer"):
             continue
         if kind in ("missing", "extra") and any(u.startswith(k + "/") for u in unloaded_images):
             continue  # an image inside it hasn't loaded in one browser (2026-11-22: friluftsbyn.se, a lazy map image)
