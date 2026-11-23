@@ -19,6 +19,7 @@ from pathlib import Path
 
 from webparity.browsers import Handle
 from webparity.db import DB
+from webparity.discover import Discoverer
 from webparity.proxy import Proxy, ProxyError
 
 log = logging.getLogger("webparity.worker")
@@ -142,6 +143,7 @@ def run(config: dict, once: bool = False, worker_name: str | None = None) -> int
     signal.signal(signal.SIGTERM, on_signal)
     signal.signal(signal.SIGINT, on_signal)
     known, known_loaded = None, 0.0
+    discoverer = Discoverer(db, config)
     visits = 0
     while not stopping:
         if stop_file.exists() or in_quiet_hours(config) or overloaded(config):
@@ -176,6 +178,13 @@ def run(config: dict, once: bool = False, worker_name: str | None = None) -> int
                 # The proxy lost responses (see detectors.proxy_errors): measure again rather than trust this visit
                 status = "queued"
             db.finish_site(site["id"], status, bundle.id)
+            if status != "blocked":
+                try:
+                    found = discoverer.visit(bundle.data)
+                    if found["domains"] or found["subpages"]:
+                        log.info("%s: %d new sites, %d sub pages", site["domain"], found["domains"], found["subpages"])
+                except Exception as exc:  # finding new sites must never stop the visits
+                    log.warning("%s: finding new sites failed: %s", site["domain"], exc)
             log.info("%s %.0f s %s", site["domain"], time.time() - started, ", ".join(errors[:4]) or "clean")
         except BrowserStartError as exc:
             # Not the site's fault: give the claim back without using up an attempt, and wait

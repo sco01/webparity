@@ -26,6 +26,10 @@ worker:
   # retired. For a host whose firewall would block the address you share with others, or your own workplace.
   # exclude: {servers: ["192.0.2.0/24"], domains: ["example.com"]}
 
+# New sites from the visits: linked domains (these top-level domains) and two sub pages per front page, never
+# more than per_domain rows per registrable domain. `webparity sites discover --since DAY` does it for saved visits.
+# discover: {enabled: true, tlds: [se], per_visit: 15, per_domain: 5, subpages: 2, skip_domains: []}
+
 web:
   listen: 127.0.0.1:8700
 

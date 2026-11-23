@@ -304,6 +304,18 @@ def cmd_sites(args) -> int:
                     url if "://" in url else "https://" + url, source=args.source, priority=args.priority
                 )
         print(f"{added} sites added")
+    elif args.action == "discover":
+        from webparity.bundle import iter_bundles
+        from webparity.discover import Discoverer
+
+        discoverer = Discoverer(db, cfg, cache=True)
+        totals = {"visits": 0, "domains": 0, "subpages": 0}
+        for bundle in iter_bundles(cfg["data_dir"], args.since):
+            found = discoverer.visit(bundle.data)
+            totals["visits"] += 1
+            totals["domains"] += found["domains"]
+            totals["subpages"] += found["subpages"]
+        print(f"{totals['visits']} visits: {totals['domains']} new sites, {totals['subpages']} sub pages")
     elif args.action == "requeue":
         marks = ",".join("?" * len(args.items))
         n = db.requeue(f"domain IN ({marks})", args.items, priority=args.priority)
@@ -526,8 +538,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--serve", action="store_true", help="only serve the pages, for manual checks")
     p.set_defaults(fn=cmd_canary)
 
-    p = sub.add_parser("sites", help="the site queue: status, add, requeue")
-    p.add_argument("action", nargs="?", default="status", choices=["status", "add", "requeue"])
+    p = sub.add_parser("sites", help="the site queue: status, add, requeue, discover (new sites from saved visits)")
+    p.add_argument("action", nargs="?", default="status", choices=["status", "add", "requeue", "discover"])
+    p.add_argument("--since", help="discover: only visits from this day on (YYYY-MM-DD)")
     p.add_argument("items", nargs="*", help="URLs, domains or site list files")
     p.add_argument("--source", default="cli")
     p.add_argument("--priority", type=int, default=50)

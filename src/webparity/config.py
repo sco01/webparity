@@ -47,6 +47,18 @@ DEFAULTS: dict[str, Any] = {
         "exclude": {"servers": [], "domains": []},
     },
     "site_lists": [],
+    # New sites from the visits (webparity.discover): linked domains in these top-level domains, at most per_visit per
+    # visit, and sub pages of front pages; never more than per_domain rows per registrable domain
+    "discover": {
+        "enabled": True,
+        "tlds": ["se"],
+        "per_visit": 15,
+        "per_domain": 5,
+        "subpages": 2,
+        "priority": 30,
+        "subpage_priority": 25,
+        "skip_domains": [],
+    },
     "user_agent_note": "",  # never used to fake a user agent; the browsers send their own
     "web": {"listen": "127.0.0.1:8700"},
     "alerts": {
