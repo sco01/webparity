@@ -829,3 +829,31 @@
       if (w > 0 && w < pw - 2) return 'justify-self: ' + s.justifySelf + ' on ' + (e.classList[0] || e.tagName.toLowerCase());
     }
     return false;
+
+# 2026-11-23: an empty block's collapsed-through margin is lost when it can't collapse out of a parent with padding or a
+# border at both the top and the bottom (parkasol.se: a footer 30 px shorter). Runs in the reference browser: a block
+# (not a formatting context root) with top and bottom padding or border whose in-flow content is only empty blocks, at
+# least one of them with a vertical margin.
+- id: empty-block-margin-in-padded-parent
+  issue: "#15396"
+  text: "the collapsed-through margin of an empty block is lost inside a parent with top and bottom padding (#15396)"
+  prefix: ["layout:height:", "mobile-layout:height:"]
+  js: |
+    const px = v => parseFloat(v) || 0;
+    const inFlow = e => { const s = getComputedStyle(e); return s.display !== 'none' && s.float === 'none' && !/absolute|fixed/.test(s.position); };
+    // An empty block that margins collapse through, with the largest vertical margin inside it (or -1 when it isn't one)
+    const through = e => { const s = getComputedStyle(e);
+      if (!/^(block|list-item)$/.test(s.display) || s.overflow !== 'visible' || e.getBoundingClientRect().height > 0.5) return -1;
+      if (px(s.paddingTop) + px(s.paddingBottom) + px(s.borderTopWidth) + px(s.borderBottomWidth) > 0 || e.textContent.trim()) return -1;
+      let m = Math.max(Math.abs(px(s.marginTop)), Math.abs(px(s.marginBottom)));
+      for (const c of e.children) { if (!inFlow(c)) continue; const cm = through(c); if (cm < 0) return -1; m = Math.max(m, cm); }
+      return m; };
+    for (const e of document.querySelectorAll('body *')) {
+      const s = getComputedStyle(e);
+      if (!/^(block|list-item)$/.test(s.display) || s.overflow !== 'visible' || s.float !== 'none' || /absolute|fixed/.test(s.position)) continue;
+      if (px(s.paddingTop) + px(s.borderTopWidth) <= 0 || px(s.paddingBottom) + px(s.borderBottomWidth) <= 0) continue;
+      const kids = [...e.children].filter(inFlow); if (!kids.length || e.textContent.trim()) continue;
+      let m = 0, ok = true; for (const c of kids) { const cm = through(c); if (cm < 0) { ok = false; break; } m = Math.max(m, cm); }
+      if (ok && m >= 8) return 'empty block with a ' + m + 'px margin in ' + (e.classList[0] || e.tagName.toLowerCase());
+    }
+    return false;
