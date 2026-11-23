@@ -885,7 +885,7 @@
 # Ladybird and Firefox resolve 100% against 0, so whole rows are 0 px high (26 sites since 2026-11-19). Runs in the
 # reference browser: Uncode's markup with the chrome class.
 - id: uncode-chrome-hack
-  issue: "draft:uncode-chrome-hack"
+  issue: "#15514"
   text: "the Uncode theme's Chrome-only CSS (height: 0 on table-cell columns with height: 100% children)"
   prefix: ["layout:", "mobile-layout:"]
   js: |
