@@ -810,3 +810,22 @@
         if (t) return e.tagName.toLowerCase() + ' > ' + b.tagName.toLowerCase() + ' (' + t.slice(0, 60) + ')'; }
     }
     return false;
+
+# 2026-11-23: justify-self on a block-level box in a block container (CSS Box Alignment 3) shrinks the box to fit its
+# content and aligns it in Chromium; Ladybird and Firefox ignore it there, so the box stays as wide as its container (two
+# sites with the same theme: footer menu links with justify-self: start, no visible difference). Runs in the reference
+# browser: a block-level box in a block container with a non-default justify-self that is narrower than its container.
+- id: justify-self-in-block-layout
+  issue: "missing-feature:justify-self-block"
+  text: "justify-self on block-level boxes in block layout (Chromium only; Ladybird and Firefox ignore it)"
+  prefix: ["layout:width:", "mobile-layout:width:"]
+  js: |
+    for (const e of document.querySelectorAll('body *')) {
+      const s = getComputedStyle(e);
+      if (!/^(start|end|center|left|right|self-start|self-end|flex-start|flex-end)$/.test(s.justifySelf)) continue;
+      if (!/^(block|flex|grid|table|flow-root|list-item)$/.test(s.display) || s.float !== 'none' || /absolute|fixed/.test(s.position)) continue;
+      const p = e.parentElement; if (!p || !/^(block|list-item|flow-root)$/.test(getComputedStyle(p).display)) continue;
+      const w = e.getBoundingClientRect().width, pw = p.clientWidth;
+      if (w > 0 && w < pw - 2) return 'justify-self: ' + s.justifySelf + ' on ' + (e.classList[0] || e.tagName.toLowerCase());
+    }
+    return false;
