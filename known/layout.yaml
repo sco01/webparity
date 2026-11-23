@@ -911,7 +911,7 @@
 # banner's overflow: hidden on html, three sites fading in body with overflow-x: hidden). Runs in the reference
 # browser: an animation on that element with a non-visible overflow.
 - id: opacity-animation-on-viewport-element
-  issue: "draft:opacity-animation-viewport"
+  issue: "#15533"
   text: "an opacity animation on the element whose overflow applies to the viewport → white page"
   prefix: ["image-differs", "empty-root", "blank-page", "less-content", "cookie-banner"]
   js: |
