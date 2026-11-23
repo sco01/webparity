@@ -52,6 +52,10 @@ BUFFER_BAR = re.compile(
     r"/span\.mejs-time-(?:loaded|buffering)(?::\d+)?$|/div\.vjs-load-progress(?::\d+)?$"
     r"|/progress\.plyr__progress__buffer(?::\d+)?$"
 )
+# Hover zoom images (2026-11-23: jQuery Zoom on WooCommerce product pages - ledins, lillamargreth, nywebbutik): hidden
+# until the pointer is over the product image, then moved with the pointer, so where they are depends on where the
+# pointer happens to be - not compared
+HOVER_ZOOM = re.compile(r"/img\.zoomImg(?::\d+)?$")
 # Google's ad slots (2026-11-22): filled in one browser and empty in the other (280 px against 0 on dagensprognos and
 # autonytt) - not compared, but an explanation for the ancestors
 AD_SLOT = re.compile(r"/(?:div|ins|aside)\.(?:google-auto-placed|adsbygoogle)(?::\d+)?(?=/|$)")
@@ -155,6 +159,8 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
         if BUFFER_BAR.search(k):
             if abs(lb["h"] - c["h"]) >= 24 or abs(lb["w"] - c["w"]) >= 24:
                 kinds[k] = "buffer"
+            continue
+        if HOVER_ZOOM.search(k):
             continue
         ad = AD_SLOT.search(k)
         if ad:
