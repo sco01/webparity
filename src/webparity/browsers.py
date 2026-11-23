@@ -105,7 +105,9 @@ class Handle:
             self.session = None
 
     def alive(self) -> bool:
-        return self.session is not None and self.session.client._closed is None
+        """The connection is open and every command got an answer; otherwise the worker starts a fresh session."""
+        client = self.session.client if self.session is not None else None
+        return client is not None and client._closed is None and not getattr(client, "timeouts", 0)
 
     # --- events ---------------------------------------------------------------------------------------------------
     def event_pos(self) -> int:

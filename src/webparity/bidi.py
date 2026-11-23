@@ -120,6 +120,9 @@ class BidiClient:
         self.events: list[dict] = []
         self._cond = threading.Condition()
         self._closed: Exception | None = None
+        # Commands that got no answer: a browser that stops answering (2026-11-23: Ladybird hanging in navigate after
+        # "check_if_unloading_is_canceled timed out") keeps its connection open, so this marks the session as broken
+        self.timeouts = 0
         threading.Thread(target=self._reader, daemon=True).start()
 
     def _reader(self) -> None:
@@ -150,6 +153,7 @@ class BidiClient:
                     raise BidiError(f"{method}: connection closed ({self._closed})")
                 left = deadline - time.monotonic()
                 if left <= 0:
+                    self.timeouts += 1
                     raise BidiError(f"{method}: no answer in {timeout} s")
                 self._cond.wait(left)
             message = self._results.pop(mine)
