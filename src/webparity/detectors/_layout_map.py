@@ -50,6 +50,10 @@ AD_SLOT = re.compile(r"/(?:div|ins|aside)\.(?:google-auto-placed|adsbygoogle)(?:
 DEPTH = 2700
 
 
+# The most elements an item (a card, a list entry) has inside, for different text explaining the whole item
+ITEM_SIZE = 25
+
+
 def index(rows: list) -> dict:
     out: dict = {}
     for i, r in enumerate(rows):
@@ -103,6 +107,13 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
         if k in L and L[k]["tag"] == C[k]["tag"] and (L[k]["text"] or C[k]["text"]) and own_text(L[k]) != own_text(C[k])
     }
     paired -= other_text
+    # ... and the rest of a small item around such text (2026-11-23: gpslogik.se's related products in random order -
+    # the card with another title had another image). Only small items: a date or a counter that differs directly in
+    # a page section must not hide the whole section.
+    for item in {C[k]["parent"] for k in other_text if C[k]["parent"] in C}:
+        inside = {k for k in C if k.startswith(item + "/")}
+        if len(inside) <= ITEM_SIZE:
+            paired -= inside
     hidden = {k for k in paired if C[k]["hidden"]}
     paired -= hidden
 
