@@ -90,6 +90,19 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
         return None
     L, C = index(lb_rows), index(ref_rows)
     paired = {k for k in C if k in L and L[k]["fp"] == C[k]["fp"] and L[k]["tag"] == C[k]["tag"]}
+
+    # Different text (2026-11-23: an Elementor loop that lists posts in random order showed other post titles in each
+    # browser): the content differs, not the layout. The parent counts as explained, as by a child that differs - also
+    # when the text is in an inline child that is not compared itself.
+    def own_text(e):
+        return e["text"], str(e["fp"]).partition(":")[2]
+
+    other_text = {
+        k
+        for k in C
+        if k in L and L[k]["tag"] == C[k]["tag"] and (L[k]["text"] or C[k]["text"]) and own_text(L[k]) != own_text(C[k])
+    }
+    paired -= other_text
     hidden = {k for k in paired if C[k]["hidden"]}
     paired -= hidden
 
@@ -174,7 +187,7 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
                 ):
                     kinds[k] = "position"
     unloaded_images = {k for k in L if k in C and C[k]["tag"] == "img" and "unloaded" in (L[k]["type"], C[k]["type"])}
-    with_child = {C[k]["parent"] for k in kinds}
+    with_child = {C[k]["parent"] for k in kinds} | {C[k]["parent"] for k in other_text}
     # content-visibility: auto (2026-11-10): an element the reference gives a placeholder size explains its parent even
     # below DEPTH (sections at y 4,400 made a results list 2,600 px taller in Ladybird)
     with_child |= {
