@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import signal
 import socket
 import struct
 import threading
@@ -17,6 +18,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 
@@ -180,13 +182,74 @@ def webdriver(base: str, method: str, path: str, body: Any = None, timeout: floa
         raise BidiError(f"{method} {path}: {message}") from None
 
 
-class Session:
-    """A browser session with its BiDi client. Use ``Session.ladybird``, ``.chromium`` or ``.firefox``."""
+# The ladybird container's run directory (supervisor.pid, profile-generation), shared read-only with the worker
+LADYBIRD_RUN = os.environ.get("WEBPARITY_LADYBIRD_RUN", "/run/webparity/ladybird")
 
-    def __init__(self, name: str, client: BidiClient, end, classic: tuple[str, str] | None = None):
+
+def _is_supervisor(pid: int) -> bool:
+    try:
+        return b"webparity-ladybird" in Path(f"/proc/{pid}/cmdline").read_bytes()
+    except OSError:
+        return False
+
+
+def fresh_ladybird_profile(base: str, run_dir: str = LADYBIRD_RUN, timeout: float = 60) -> bool:
+    """Has the ladybird container restart its WebDriver on an empty profile; True when it did.
+
+    Ladybird's WebDriver shares one profile (cookies, storage, HSTS, the HTTP cache) between all its sessions, and has
+    no BiDi commands to clear it, so the container's start script does it on SIGUSR1 (see images/ladybird/start.sh).
+    Nothing happens without that script (an older container, or outside its PID namespace) or while a session runs.
+    """
+    run = Path(run_dir)
+    try:
+        pid = int((run / "supervisor.pid").read_text().strip())
+    except (OSError, ValueError):
+        return False
+    if not _is_supervisor(pid):
+        return False
+    try:
+        if not webdriver(base, "GET", "/status", timeout=10).get("ready"):
+            return False  # a session is running (another client's): leave it alone
+    except Exception:
+        return False
+    generation = run / "profile-generation"
+
+    def current() -> str:
+        try:
+            return generation.read_text().strip()
+        except OSError:
+            return ""
+
+    before = current()
+    os.kill(pid, signal.SIGUSR1)
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        time.sleep(0.1)
+        if current() == before:
+            continue
+        try:
+            if webdriver(base, "GET", "/status", timeout=5).get("ready"):
+                return True
+        except Exception:
+            pass
+    raise BidiError("ladybird: the WebDriver did not come back on a fresh profile")
+
+
+class Session:
+    """A browser session with its BiDi client. Use ``Session.ladybird``, ``.chromium`` or ``.firefox``.
+
+    Every session starts without cookies, storage or cache from earlier ones: Chromium gets a new profile per session,
+    Firefox a new user context, and Ladybird's WebDriver is restarted on an empty profile. ``context`` is the top-level
+    browsing context to use.
+    """
+
+    def __init__(
+        self, name: str, client: BidiClient, end, classic: tuple[str, str] | None = None, context: str | None = None
+    ):
         self.name, self.client, self._end = name, client, end
         # (WebDriver base URL, session id) for Ladybird and Chromium, for the few things only classic WebDriver does
         self.classic = classic
+        self.context = context or client.command("browsingContext.getTree", {})["contexts"][0]["context"]
 
     def classic_call(self, method: str, path: str, body: Any = None) -> Any:
         if self.classic is None:
@@ -212,7 +275,9 @@ class Session:
         )
 
     @classmethod
-    def ladybird(cls, base: str) -> Session:
+    def ladybird(cls, base: str, fresh: bool = True) -> Session:
+        if fresh:
+            fresh_ladybird_profile(base)
         return cls._classic("ladybird", base, {"webSocketUrl": True})
 
     @classmethod
@@ -226,4 +291,34 @@ class Session:
     def firefox(cls, bidi_url: str) -> Session:
         client = BidiClient(bidi_url.rstrip("/") + "/session")
         client.command("session.new", {"capabilities": {}})
-        return cls("firefox", client, lambda: client.command("session.end", {}))
+        try:
+            # User contexts left behind by sessions that weren't ended, and extra tabs: one default tab stays open on
+            # about:blank, so Firefox keeps a window when the session's user context is removed
+            for uc in client.command("browser.getUserContexts", {})["userContexts"]:
+                if uc["userContext"] != "default":
+                    client.command("browser.removeUserContext", {"userContext": uc["userContext"]})
+            kept, *extra = client.command("browsingContext.getTree", {"maxDepth": 0})["contexts"]
+            for tab in extra:
+                client.command("browsingContext.close", {"context": tab["context"]})
+            client.command(
+                "browsingContext.navigate", {"context": kept["context"], "url": "about:blank", "wait": "complete"}
+            )
+            user_context = client.command("browser.createUserContext", {})["userContext"]
+            context = client.command("browsingContext.create", {"type": "window", "userContext": user_context})[
+                "context"
+            ]
+            client.command("browsingContext.activate", {"context": context})
+        except BaseException:
+            try:
+                client.command("session.end", {})
+            finally:
+                client.close()
+            raise
+
+        def end() -> None:
+            try:
+                client.command("browser.removeUserContext", {"userContext": user_context})
+            finally:
+                client.command("session.end", {})
+
+        return cls("firefox", client, end, context=context)

@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: BSD-2-Clause
 """The worker: takes sites from the queue and visits them, one at a time, until stopped.
 
-Sessions are long-lived and replaced when broken, and every ``recycle_after`` visits. The worker pauses during the
-quiet hours (the nightly build and regression watch get the CPU) and while the load average is above
-``worker.max_load``. A stop file (``<data>/stop-workers``) makes every worker finish its visit and wait.
+Every visit gets new sessions, so it starts without the cookies, storage and cache of earlier visits (see
+``Session``; Chromium kept them until its session ended, Firefox and Ladybird for good, 2026-11-23). The worker
+pauses during the quiet hours (the nightly build and regression watch get the CPU) and while the load average is
+above ``worker.max_load``. A stop file (``<data>/stop-workers``) makes every worker finish its visit and wait.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from webparity.db import DB
 from webparity.proxy import Proxy, ProxyError
 
 log = logging.getLogger("webparity.worker")
-RECYCLE_AFTER = 50
+RECYCLE_AFTER = 1  # visits per set of sessions
 
 
 def in_quiet_hours(config: dict, now: datetime | None = None) -> bool:

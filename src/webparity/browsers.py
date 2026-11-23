@@ -89,7 +89,7 @@ class Handle:
             self.session = Session.firefox(self.endpoint)
         else:
             raise ValueError(f"unknown browser {self.name}")
-        self.context = self.session.client.command("browsingContext.getTree", {})["contexts"][0]["context"]
+        self.context = self.session.context
         try:
             self.session.client.command("session.subscribe", {"events": EVENTS})
         except BidiError:

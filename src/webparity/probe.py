@@ -249,7 +249,7 @@ class Browser:
             self.session = Session.chromium(endpoint, args)
         else:
             self.session = Session.firefox(endpoint)
-        self.context = self.session.client.command("browsingContext.getTree", {})["contexts"][0]["context"]
+        self.context = self.session.context
         self._set_viewport()
 
     def _set_viewport(self) -> None:
