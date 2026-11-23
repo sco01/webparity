@@ -44,3 +44,42 @@ def test_candidate_text_follows_the_latest_finding(tmp_path):
     bundle.data["findings"][0]["text"] = "Layout difference"
     db.record_visit(1, bundle, "w", "ok", 1)
     assert db.one("SELECT text FROM candidates WHERE signature = 'sig'")[0] == "Layout difference"
+
+
+def _queue(db, rows):
+    for i, (url, domain) in enumerate(rows, start=1):
+        db.x("INSERT INTO sites (id, url, domain, priority) VALUES (?, ?, ?, 25)", (i, url, domain))
+
+
+def test_two_workers_never_take_the_same_host(tmp_path):
+    db = DB(tmp_path / "webparity.db")
+    _queue(
+        db,
+        [
+            ("https://a.example/one/", "a.example/one"),
+            ("https://a.example/two/", "a.example/two"),
+            ("https://b.example/", "b.example"),
+        ],
+    )
+    servers = {"a.example": "10.0.0.1", "b.example": "10.0.0.2"}
+    first = db.claim("w1", resolve=servers.get)
+    second = db.claim("w2", resolve=servers.get)
+    assert first["domain"] == "a.example/one" and second["domain"] == "b.example"
+    assert db.claim("w3", resolve=servers.get) is None  # a.example/two waits for w1
+    db.finish_site(first["id"], "clean", None)
+    assert db.claim("w3", resolve=servers.get)["domain"] == "a.example/two"
+
+
+def test_two_workers_never_take_hosts_on_the_same_server(tmp_path):
+    db = DB(tmp_path / "webparity.db")
+    _queue(
+        db,
+        [("https://a.example/", "a.example"), ("https://b.example/", "b.example"), ("https://c.example/", "c.example")],
+    )
+    servers = {"a.example": "10.0.0.1", "b.example": "10.0.0.1", "c.example": "10.0.0.3"}
+    assert db.claim("w1", resolve=servers.get)["domain"] == "a.example"
+    assert db.claim("w2", resolve=servers.get)["domain"] == "c.example"
+    assert db.claim("w3", resolve=servers.get) is None
+    # A host that doesn't resolve is not held back by the server rule
+    db.x("INSERT INTO sites (id, url, domain, priority) VALUES (4, 'https://d.example/', 'd.example', 25)")
+    assert db.claim("w3", resolve=servers.get)["domain"] == "d.example"

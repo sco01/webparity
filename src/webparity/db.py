@@ -160,7 +160,23 @@ MIGRATIONS: list[str] = [
     ALTER TABLE issues ADD COLUMN fields TEXT;
     ALTER TABLE issues ADD COLUMN review_mark TEXT;
     """,
+    # 5: the server (IP address) a claimed site's host resolved to, so no two workers visit one server at a time
+    """
+    ALTER TABLE sites ADD COLUMN server TEXT
+    """,
 ]
+
+# A site's host: its domain up to the first "/" (sub pages are sites of their own, "host/path")
+_HOST = "substr({t}.domain, 1, instr({t}.domain || '/', '/') - 1)"
+
+
+def server_of(host: str) -> str | None:
+    """The first address the host resolves to, or None."""
+    try:
+        infos = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
+    except (OSError, UnicodeError):
+        return None
+    return infos[0][4][0] if infos else None
 
 
 def now() -> str:
@@ -225,19 +241,54 @@ class DB:
         )
         return cur.rowcount > 0
 
-    def claim(self, worker: str | None = None) -> sqlite3.Row | None:
-        """Takes the next queued site for this worker, atomically."""
+    def claim(self, worker: str | None = None, resolve=server_of) -> sqlite3.Row | None:
+        """Takes the next queued site for this worker, atomically.
+
+        A site is skipped while another worker visits the same host (sub pages are sites of their own) or a host on the
+        same server (2026-11-23: two workers visited two pages of one site at once, and of another site on the same
+        server minutes later - about 400 connections in a few seconds each time, and the server's firewall blocked us).
+        The server is resolved outside the transaction, so a slow DNS answer doesn't hold the database lock.
+        """
         worker = worker or socket.gethostname()
-        with self.tx():
-            row = self.one("SELECT * FROM sites WHERE status = 'queued' ORDER BY priority DESC, id LIMIT 1")
-            if row is None:
-                return None
-            self.x(
-                "UPDATE sites SET status = 'visiting', worker = ?, claimed_at = ?, attempts = attempts + 1"
-                " WHERE id = ?",
-                (worker, now(), row["id"]),
-            )
-        return self.one("SELECT * FROM sites WHERE id = ?", (row["id"],))
+        host_v, host_s = _HOST.format(t="v"), _HOST.format(t="s")
+        busy_host = f"EXISTS (SELECT 1 FROM sites v WHERE v.status = 'visiting' AND {host_v} = {host_s})"
+        # The first site of each registrable domain (a site's sub pages and subdomains come one after another, and
+        # subdomains are often on one server), at most 20; read on until there are 20 (one domain can fill the top of
+        # the queue with thousands of sub pages)
+        from webparity.sites import registrable
+
+        seen: set[str] = set()
+        candidates = []
+        cursor = self.conn.execute(
+            f"SELECT s.id, {host_s} AS host FROM sites s WHERE s.status = 'queued' AND NOT {busy_host}"
+            " ORDER BY s.priority DESC, s.id"
+        )
+        for row in cursor:
+            d = registrable(row["host"])
+            if d not in seen:
+                seen.add(d)
+                candidates.append(row)
+                if len(candidates) >= 20:
+                    break
+        cursor.close()
+        for cand in candidates:
+            server = resolve(cand["host"]) if resolve else None
+            with self.tx():
+                ok = self.one(
+                    f"SELECT 1 FROM sites s WHERE s.id = ? AND s.status = 'queued' AND NOT {busy_host}"
+                    " AND (? IS NULL OR NOT EXISTS"
+                    " (SELECT 1 FROM sites v WHERE v.status = 'visiting' AND v.server = ?))",
+                    (cand["id"], server, server),
+                )
+                if ok is None:
+                    continue
+                self.x(
+                    "UPDATE sites SET status = 'visiting', worker = ?, claimed_at = ?, attempts = attempts + 1,"
+                    " server = ? WHERE id = ?",
+                    (worker, now(), server, cand["id"]),
+                )
+            return self.one("SELECT * FROM sites WHERE id = ?", (cand["id"],))
+        return None
 
     def release_stale(self, minutes: int = 30) -> int:
         """Sites claimed by a worker that died go back to the queue."""
