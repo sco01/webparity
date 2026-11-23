@@ -577,3 +577,13 @@ def test_import_gallery(env):
     import_gallery(config, db, gallery)
     assert db.one("SELECT COUNT(*) FROM issues")[0] == 7
     assert db.one("SELECT number FROM issues WHERE id = ?", (second["id"],))["number"] == 250
+
+    # The watch closed #250 and the nightly verification confirmed the fix; the gallery still says open
+    db.x(
+        "UPDATE issues SET state = 'closed', closed = '2026-11-22', closed_by = '#9', verified = '2026-11-23',"
+        " verified_result = 'fixed' WHERE number = 250"
+    )
+    import_gallery(config, db, gallery)
+    kept = db.one("SELECT * FROM issues WHERE number = 250")
+    assert (kept["state"], kept["closed"], kept["closed_by"]) == ("closed", "2026-11-22", "#9")
+    assert (kept["verified"], kept["verified_result"]) == ("2026-11-23", "fixed")

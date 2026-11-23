@@ -211,6 +211,9 @@ def _import_queued(config, db, gallery, cases_root, draft_name, kind, comment_on
     counts["queued"] += 1
 
 
+CLOSED_STATES = ("closed", "duplicate", "not-planned")
+
+
 def _import_issue(config, db, gallery, cases_root, number, filed, status, title, draft_name, counts) -> None:
     title = title.strip().replace("\\|", "|")
     info = parse_status(status)
@@ -248,6 +251,17 @@ def _import_issue(config, db, gallery, cases_root, number, filed, status, title,
             (*values, number, now()),
         )
     else:
+        # The issue watch and the nightly verification know more than the gallery's INDEX, which is not updated when
+        # an issue closes: never reopen a closed issue or clear a verification (2026-11-23: an import after a
+        # registration set two closed issues back to filed and cleared eleven verifications)
+        current = db.one(
+            "SELECT state, closed, closed_by, verified, verified_result FROM issues WHERE id = ?", (row["id"],)
+        )
+        values = list(values)
+        if current["state"] in CLOSED_STATES and values[2] not in CLOSED_STATES:
+            values[2], values[6], values[7] = current["state"], current["closed"], current["closed_by"]
+        if not values[8]:
+            values[8], values[9] = current["verified"], current["verified_result"]
         db.x(
             "UPDATE issues SET draft = ?, title = ?, state = ?, signatures = ?, test_case = ?, filed = ?, closed = ?,"
             " closed_by = ?, verified = ?, verified_result = ?, number = ?, note = 'imported' WHERE id = ?",
