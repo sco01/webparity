@@ -571,3 +571,9 @@ def test_import_gallery(env):
     assert filed["number"] == 300 and filed["state"] == "filed"
     assert db.one("SELECT state FROM issues WHERE id = ?", (unposted["id"],))["state"] == "posted"
     assert db.one("SELECT COUNT(*) FROM issues WHERE state = 'draft'")[0] == 1  # 100-ej.md is still waiting
+
+    # Posted twice and the repost closed as a duplicate: the gallery now names the first issue, #250
+    index.write_text(index.read_text().replace("| [#200](u) | 2026-11-02 |", "| [#250](u) | 2026-11-01 |"))
+    import_gallery(config, db, gallery)
+    assert db.one("SELECT COUNT(*) FROM issues")[0] == 7
+    assert db.one("SELECT number FROM issues WHERE id = ?", (second["id"],))["number"] == 250

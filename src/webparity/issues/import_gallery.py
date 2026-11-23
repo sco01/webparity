@@ -223,8 +223,10 @@ def _import_issue(config, db, gallery, cases_root, number, filed, status, title,
     signatures = [r["signature"] for r in db.q("SELECT signature FROM candidates WHERE issue = ?", (f"#{number}",))]
     meta = {"signatures": signatures, "test_case": test_case or "", "kind": "issue", "issue": number, "filed": filed}
     draft = str(_copy_draft(config, gallery_draft, meta)) if text else None
+    # By number, else by draft: a queued draft that was filed, or a draft whose number changed (2026-11-23: posted
+    # twice, the repost closed as a duplicate, so the gallery now names the first issue)
     row = db.one("SELECT id FROM issues WHERE number = ?", (number,)) or (
-        db.one("SELECT id FROM issues WHERE draft = ? AND number IS NULL", (draft,)) if draft else None
+        db.one("SELECT id FROM issues WHERE draft = ?", (draft,)) if draft else None
     )
     values = (
         draft,
