@@ -188,6 +188,12 @@ const CAROUSEL_SLIDE = 'cycle-slide';
 const honeypot = b => { const r = b.getBoundingClientRect(); if (r.width > 1 || r.height > 1) return false;
   const s = getComputedStyle(b); return s.position === 'absolute' && s.overflow === 'hidden'; };
 const stable = x => x && /^[A-Za-z][\w-]{0,40}$/.test(x) && !/\d{3,}|[0-9a-f]{6,}/i.test(x);
+// Images (2026-11-23): 'unloaded', or for an image with candidates (srcset, <picture>) the file it shows - the spec
+// lets a browser pick another candidate than sizes asks for, and Chromium takes one it already has (aquaexpert.se: the
+// 400x250 crop from the desktop step kept in the mobile step, where Ladybird took the full image of another shape).
+const imgType = e => !(e.complete && e.naturalWidth) ? 'unloaded'
+  : (e.srcset || (e.parentElement && e.parentElement.tagName === 'PICTURE'))
+    ? 'src:' + (e.currentSrc || '').split(/[?#]/)[0].split('/').pop().slice(0, 80) : '';
 if (!document.body) return [];
 const sx = scrollX, sy = scrollY;
 const stack = [[document.body, '', -1]];
@@ -206,7 +212,7 @@ while (stack.length && out.length < MAX) {
   const cva = c.contentVisibility === 'auto' ? 1 : 0;
   out.push([pk, pi, Math.round(r.left + sx), Math.round(r.top + sy), Math.round(r.width), Math.round(r.height), c.display, c.position, c.cssFloat,
            text, parseFloat(c.fontSize) || 16, e.childElementCount + ':' + fp.replace(/\s+/g, ' '), hidden, cva,
-           tag === 'INPUT' ? (e.type || '') : tag === 'IMG' && !(e.complete && e.naturalWidth) ? 'unloaded' : '']);
+           tag === 'INPUT' ? (e.type || '') : tag === 'IMG' ? imgType(e) : '']);
   // Maps (2026-11-18): Google Maps and Leaflet put the tiles into the DOM in the order they load, so "tile 7" is a different
   // tile in each browser (positions differed by multiples of 256 px - 2/3 of layout:position:block>block). The map is
   // compared, not the tiles in it.

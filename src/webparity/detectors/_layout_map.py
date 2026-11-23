@@ -168,6 +168,14 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
             if abs(lb["h"] - c["h"]) >= 24 or abs(lb["w"] - c["w"]) >= 24:
                 kinds[k] = "unloaded"
             continue
+        sources = {lb["type"], c["type"]}
+        if c["tag"] == "img" and len(sources) == 2 and all(t.startswith("src:") for t in sources):
+            # Another candidate of the srcset (2026-11-23): which one a browser takes is its choice (Chromium reuses a
+            # larger one it already has), and the candidates can have different shapes - not a cause, but an
+            # explanation for the ancestors
+            if abs(lb["h"] - c["h"]) >= 24 or abs(lb["w"] - c["w"]) >= 24:
+                kinds[k] = "other-source"
+            continue
         if c["cva"] and (abs(lb["h"] - c["h"]) >= 24 or abs(lb["w"] - c["w"]) >= 24):
             # content-visibility: auto (2026-11-10): Chromium gives the element a placeholder size off screen - not a
             # cause, but counted as an explanation so the ancestors are not pointed out
@@ -232,7 +240,7 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
     causes = []
     for k, kind in kinds.items():
         c, lb = C[k], L[k]
-        if kind in ("cv-auto", "native-width", "ad", "unloaded", "carousel", "text-wrap", "buffer"):
+        if kind in ("cv-auto", "native-width", "ad", "unloaded", "other-source", "carousel", "text-wrap", "buffer"):
             continue
         if kind in ("missing", "extra") and any(u.startswith(k + "/") for u in unloaded_images):
             continue  # an image inside it hasn't loaded in one browser (2026-11-22: friluftsbyn.se, a lazy map image)
