@@ -83,3 +83,28 @@ def test_two_workers_never_take_hosts_on_the_same_server(tmp_path):
     # A host that doesn't resolve is not held back by the server rule
     db.x("INSERT INTO sites (id, url, domain, priority) VALUES (4, 'https://d.example/', 'd.example', 25)")
     assert db.claim("w3", resolve=servers.get)["domain"] == "d.example"
+
+
+def test_excluded_servers_and_domains_are_retired(tmp_path):
+    db = DB(tmp_path / "webparity.db")
+    _queue(
+        db,
+        [
+            ("https://shop.example/", "shop.example"),
+            ("https://shop.example/page/", "shop.example/page"),
+            ("https://www.corp.example/", "corp.example"),
+            ("https://jobs.corp.example/", "jobs.corp.example"),
+            ("https://ok.example/", "ok.example"),
+        ],
+    )
+    servers = {"shop.example": "192.0.2.17", "corp.example": "198.51.100.1", "ok.example": "198.51.100.9"}
+    exclude = {"servers": ["192.0.2.0/24"], "domains": ["corp.example"]}
+    site = db.claim("w1", resolve=servers.get, exclude=exclude)
+    assert site["domain"] == "ok.example"
+    retired = {r["domain"]: r["note"] for r in db.q("SELECT domain, note FROM sites WHERE status = 'retired'")}
+    assert retired == {
+        "shop.example": "excluded (192.0.2.0/24)",
+        "shop.example/page": "excluded (192.0.2.0/24)",
+        "corp.example": "excluded (corp.example)",
+        "jobs.corp.example": "excluded (corp.example)",
+    }

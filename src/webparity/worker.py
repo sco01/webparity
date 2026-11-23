@@ -151,7 +151,7 @@ def run(config: dict, once: bool = False, worker_name: str | None = None) -> int
             time.sleep(30)
             continue
         db.release_stale()
-        site = db.claim(worker_name)
+        site = db.claim(worker_name, exclude=config["worker"].get("exclude"))
         if site is None:
             if once:
                 return 0

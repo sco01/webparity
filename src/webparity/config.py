@@ -41,6 +41,10 @@ DEFAULTS: dict[str, Any] = {
         "max_load": 12.0,  # pause while the 1-minute load average is above this
         # Quiet hours: no visits, so the nightly build and regression watch get the CPU. "HH:MM-HH:MM", local time.
         "quiet_hours": ["01:00-02:30"],
+        # Never visited (2026-11-23): servers as addresses or networks ("192.0.2.0/24") and domains with their
+        # subdomains ("example.com"), for hosts that must not see webparity's traffic - a server whose firewall
+        # blocks the address webparity shares with people who need the sites hosted there, say
+        "exclude": {"servers": [], "domains": []},
     },
     "site_lists": [],
     "user_agent_note": "",  # never used to fake a user agent; the browsers send their own

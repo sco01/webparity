@@ -12,6 +12,7 @@ A site is taken by priority, then by id; ``recheck`` marks a site queued again b
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import socket
 import sqlite3
@@ -241,15 +242,18 @@ class DB:
         )
         return cur.rowcount > 0
 
-    def claim(self, worker: str | None = None, resolve=server_of) -> sqlite3.Row | None:
+    def claim(self, worker: str | None = None, resolve=server_of, exclude: dict | None = None) -> sqlite3.Row | None:
         """Takes the next queued site for this worker, atomically.
 
         A site is skipped while another worker visits the same host (sub pages are sites of their own) or a host on the
         same server (2026-11-23: two workers visited two pages of one site at once, and of another site on the same
         server minutes later - about 400 connections in a few seconds each time, and the server's firewall blocked us).
         The server is resolved outside the transaction, so a slow DNS answer doesn't hold the database lock.
+        ``exclude`` is ``worker.exclude`` from the configuration: a site on an excluded server or domain is retired.
         """
         worker = worker or socket.gethostname()
+        networks = [ipaddress.ip_network(n, strict=False) for n in (exclude or {}).get("servers") or []]
+        domains = [d.lower().strip(".") for d in (exclude or {}).get("domains") or []]
         host_v, host_s = _HOST.format(t="v"), _HOST.format(t="s")
         busy_host = f"EXISTS (SELECT 1 FROM sites v WHERE v.status = 'visiting' AND {host_v} = {host_s})"
         # The first site of each registrable domain (a site's sub pages and subdomains come one after another, and
@@ -272,7 +276,25 @@ class DB:
                     break
         cursor.close()
         for cand in candidates:
-            server = resolve(cand["host"]) if resolve else None
+            host = cand["host"]
+            reason = next((d for d in domains if host == d or host.endswith("." + d)), None)
+            server = resolve(host) if resolve and reason is None else None
+            if server and reason is None:
+                address = ipaddress.ip_address(server)
+                reason = next((str(n) for n in networks if address.version == n.version and address in n), None)
+            if reason is not None:
+                # Retired for good, with every queued page of the host (or, for a domain, of the domain)
+                host_value = _HOST.format(t="sites")
+                match, args = (
+                    (f"{host_value} = ?", [host])
+                    if reason not in domains
+                    else (f"({host_value} = ? OR {host_value} LIKE ?)", [reason, "%." + reason])
+                )
+                self.x(
+                    f"UPDATE sites SET status = 'retired', note = ? WHERE status = 'queued' AND {match}",
+                    [f"excluded ({reason})", *args],
+                )
+                continue
             with self.tx():
                 ok = self.one(
                     f"SELECT 1 FROM sites s WHERE s.id = ? AND s.status = 'queued' AND NOT {busy_host}"
