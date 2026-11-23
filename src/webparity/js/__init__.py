@@ -185,6 +185,8 @@ const SKIP = /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|LINK|META|HEAD|TITLE|BR|WBR)$/;
 const CAROUSEL = ['flickity-viewport', 'slick-list', 'swiper-wrapper', 'splide__track', 'owl-stage-outer', 'glide__track', 'carousel-inner', 'slideshow', 'n2-ss-slider-1', 'et_pb_slides'];
 // jQuery Cycle marks the slides, not the viewport (2026-11-22: byggnyheter's header)
 const CAROUSEL_SLIDE = 'cycle-slide';
+const honeypot = b => { const r = b.getBoundingClientRect(); if (r.width > 1 || r.height > 1) return false;
+  const s = getComputedStyle(b); return s.position === 'absolute' && s.overflow === 'hidden'; };
 const stable = x => x && /^[A-Za-z][\w-]{0,40}$/.test(x) && !/\d{3,}|[0-9a-f]{6,}/i.test(x);
 if (!document.body) return [];
 const sx = scrollX, sy = scrollY;
@@ -220,6 +222,10 @@ while (stack.length && out.length < MAX) {
   const counter = {}, children = [];
   for (const b of e.children) {
     const t = b.tagName.toUpperCase(); if (SKIP.test(t)) continue;
+    // Anti-spam honeypots (2026-11-23: WPForms puts its 1 x 1 px absolutely positioned fields with overflow: hidden at a
+    // random place among the real ones on every load, so "field 2" was a different field in each browser): not compared,
+    // and not counted, so the real siblings keep their keys
+    if (honeypot(b)) continue;
     const id = b.getAttribute('id'), cl = (b.getAttribute('class') || '').trim().split(/\s+/)[0];
     const sig = t.toLowerCase() + (stable(id) ? '#' + id : stable(cl) ? '.' + cl : '');
     counter[sig] = (counter[sig] || 0) + 1;
