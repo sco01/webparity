@@ -125,13 +125,16 @@ for (const a of document.links) { try { const h = new URL(a.href).hostname; if (
 // per document, so 30 iframes each fetching a player stylesheet once do not count (2026-11-17); data: URLs are not entries.
 const counts = {};
 for (const x of R) counts[x.name] = (counts[x.name] || 0) + 1;
+// A lazy image with neither src nor srcset (2026-11-23: the file is in a <picture>'s <source>, maklarhuset.se and others)
+// is complete by the spec before it is requested - Ladybird and Firefox say so, Chromium doesn't - not broken
+const unrequested = i => i.loading === 'lazy' && !i.hasAttribute('src') && !i.hasAttribute('srcset');
 const repeated = Object.entries(counts).filter(([u, n]) => n >= 20).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([u, n]) => [u.slice(0, 2000), n]);
 return {title: document.title.slice(0, 80), url: location.href.slice(0, 300), content_type: document.contentType, elements: document.querySelectorAll('*').length,
         text: Math.max(0, txt.length - optText), canvas: cs.length, canvas_visible: canvases.length,
         resources: per, resources_total: R.length, resource_list: R.slice(0, 500).map(x => x.name.slice(0, 300)), resource_types: R.slice(0, 500).map(x => x.initiatorType || ''),
         repeated,
         error_reports: R.filter(x => ERROR_REPORT.test(x.name)).length,
-        broken_images: Array.from(document.images).filter(i => i.complete && i.naturalWidth === 0 && (i.currentSrc || i.src) && visible(i)).length,
+        broken_images: Array.from(document.images).filter(i => i.complete && i.naturalWidth === 0 && (i.currentSrc || i.src) && visible(i) && !unrequested(i)).length,
         font_errors: document.fonts ? Array.from(document.fonts).filter(f => f.status === 'error').length : null,
         font_error_names: document.fonts ? Array.from(document.fonts).filter(f => f.status === 'error').slice(0, 5).map(f => `${f.family} ${f.weight} ${f.style}`) : [],
         // Errors without a replacement (2026-11-08): a failing font does not count when another @font-face with the same
