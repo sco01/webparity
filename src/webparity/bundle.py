@@ -63,16 +63,18 @@ class Bundle:
         (self.path / name).write_bytes(content)
 
     def write_json(self, name: str, obj: Any) -> None:
-        self.write_file(name, json.dumps(obj, ensure_ascii=False).encode())
+        self.write_file(name, json.dumps(obj, ensure_ascii=False).encode("utf-8", "replace"))
 
     def add_events(self, events: list[dict]) -> None:
-        with open(self.path / "events.jsonl", "a", encoding="utf-8") as f:
+        with open(self.path / "events.jsonl", "a", encoding="utf-8", errors="replace") as f:
             for e in events:
                 f.write(json.dumps(e, ensure_ascii=False) + "\n")
 
     def save(self) -> None:
+        # errors="replace": a page text cut in the middle of a surrogate pair (an emoji) leaves a lone surrogate,
+        # which UTF-8 can't encode (2026-11-23: the worker died on every visit of one page and took it again)
         tmp = self.path / "visit.json.tmp"
-        tmp.write_text(json.dumps(self.data, ensure_ascii=False, indent=1), encoding="utf-8")
+        tmp.write_text(json.dumps(self.data, ensure_ascii=False, indent=1), encoding="utf-8", errors="replace")
         tmp.replace(self.path / "visit.json")
 
     def move_in(self, source: Path, name: str) -> None:
