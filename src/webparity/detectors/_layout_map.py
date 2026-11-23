@@ -39,9 +39,11 @@ NATIVE_WIDTH = {"file"}
 # Carousel viewports (2026-11-22): the layout map stops at them (webparity.js.LAYOUT), but their own height is set by
 # the carousel's script and depends on when it last measured - Flickity's thumbnails on dromvavaren.se were 63 px at a
 # mobile load and 91 after a resize in every browser. Not compared, but an explanation for the ancestors (like ads).
+# UIkit's slideshow and slider (2026-11-23: asb-executive.se, an autoplaying slideshow on another slide in each one).
 CAROUSEL_VIEWPORT = re.compile(
     r"/(?:div|ul|section)\.(?:flickity-viewport|slick-list|swiper-wrapper|splide__track|owl-stage-outer|glide__track"
-    r"|carousel-inner|slideshow|n2-ss-slider-1|et_pb_slides)(?::\d+)?$|/rs-slides(?::\d+)?$"
+    r"|carousel-inner|slideshow|n2-ss-slider-1|et_pb_slides|uk-slideshow-items|uk-slider-items)(?::\d+)?$"
+    r"|/rs-slides(?::\d+)?$"
 )
 # Google's ad slots (2026-11-22): filled in one browser and empty in the other (280 px against 0 on dagensprognos and
 # autonytt) - not compared, but an explanation for the ancestors
