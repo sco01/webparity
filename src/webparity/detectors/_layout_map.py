@@ -184,6 +184,11 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
                 kinds[k] = "width"
             elif dh >= height_limit and dh >= 0.25 * max(lb["h"], c["h"]):
                 kinds[k] = "height"
+            elif c["tt"] and dh >= 24 and dh >= 0.25 * max(lb["h"], c["h"]):
+                # Text that wraps onto another line (2026-11-23: a 48 px heading one line taller made its flex
+                # container 64 px taller, more than the container's own limit) - not a cause, but an explanation
+                # for the ancestors
+                kinds[k] = "text-wrap"
             elif c["position"] in ("absolute", "fixed") and dw < 8 and dh < 8:
                 # The position is measured against the nearest ancestor that is not inline (2026-11-10): an inline
                 # parent's box is the union of its fragments and differs between the engines (above) - 45 sites got
@@ -200,7 +205,12 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
                 ):
                     kinds[k] = "position"
     unloaded_images = {k for k in L if k in C and C[k]["tag"] == "img" and "unloaded" in (L[k]["type"], C[k]["type"])}
-    with_child = {C[k]["parent"] for k in kinds} | {C[k]["parent"] for k in other_text}
+    with_child = {C[k]["parent"] for k, kind in kinds.items() if kind != "text-wrap"} | {
+        C[k]["parent"] for k in other_text
+    }
+    # Text wrapping onto another line explains a height difference, not a width difference (a menu item can be
+    # wider because of a real bug and wrap because of it)
+    taller_text = {C[k]["parent"] for k, kind in kinds.items() if kind == "text-wrap"}
     # content-visibility: auto (2026-11-10): an element the reference gives a placeholder size explains its parent even
     # below DEPTH (sections at y 4,400 made a results list 2,600 px taller in Ladybird)
     with_child |= {
@@ -211,7 +221,7 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
     causes = []
     for k, kind in kinds.items():
         c, lb = C[k], L[k]
-        if kind in ("cv-auto", "native-width", "ad", "unloaded", "carousel"):
+        if kind in ("cv-auto", "native-width", "ad", "unloaded", "carousel", "text-wrap"):
             continue
         if kind in ("missing", "extra") and any(u.startswith(k + "/") for u in unloaded_images):
             continue  # an image inside it hasn't loaded in one browser (2026-11-22: friluftsbyn.se, a lazy map image)
@@ -219,6 +229,8 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
             continue  # the outermost element that is missing is enough
         if kind in ("width", "height") and k in with_child:
             continue  # a child explains the difference
+        if kind == "height" and k in taller_text:
+            continue
         parent_display = C[c["parent"]]["display"] if c["parent"] in C else "?"
         d = (
             c["tag"]
