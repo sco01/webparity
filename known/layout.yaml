@@ -905,3 +905,18 @@
       if (!isNaN(m) && l.scrollWidth > m + 1) return 'legend content ' + l.scrollWidth + ' px, max-width ' + m + ' px';
     }
     return false;
+
+# 2026-11-23: after an opacity animation on the element whose overflow applies to the viewport (html, or body when
+# html's overflow is visible), Ladybird paints nothing while that overflow is not visible (sydved.se with its consent
+# banner's overflow: hidden on html, three sites fading in body with overflow-x: hidden). Runs in the reference
+# browser: an animation on that element with a non-visible overflow.
+- id: opacity-animation-on-viewport-element
+  issue: "draft:opacity-animation-viewport"
+  text: "an opacity animation on the element whose overflow applies to the viewport → white page"
+  prefix: ["image-differs", "empty-root", "blank-page", "less-content", "cookie-banner"]
+  js: |
+    const html = document.documentElement, h = getComputedStyle(html);
+    const e = h.overflowX === 'visible' && h.overflowY === 'visible' && document.body ? document.body : html;
+    const s = getComputedStyle(e);
+    if (s.animationName === 'none' || (s.overflowX === 'visible' && s.overflowY === 'visible')) return false;
+    return e.tagName.toLowerCase() + ' animation ' + s.animationName + ', overflow ' + s.overflowX + ' ' + s.overflowY;
