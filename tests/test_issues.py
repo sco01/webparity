@@ -392,6 +392,11 @@ def test_verify(env, monkeypatch):
 
     row = db.one("SELECT * FROM issues WHERE number = 1")
     assert row["verified_result"] == "fixed" and row["verified"]
+    # A failed run (here #1 errors) keeps the earlier result
+    from webparity.issues.verify import _record
+
+    _record(db, db.q("SELECT * FROM issues WHERE number = 1"), [{"number": 1, "result": "error"}])
+    assert db.one("SELECT verified_result FROM issues WHERE number = 1")[0] == "fixed"
     assert db.one("SELECT status FROM candidates")[0] == "fixed"
 
     report = format_report(list(results.values()), "feedface123")

@@ -282,6 +282,15 @@ def _record(db: DB, rows, items: list[dict]) -> None:
     signatures = {r["number"]: load_signatures(r["signatures"]) for r in rows}
     with db.tx():
         for item in items:
+            if item["result"] == "error":
+                # The run failed (2026-11-23: Ladybird busy with a worker's session), which says nothing about the
+                # issue: keep an earlier result
+                db.x(
+                    "UPDATE issues SET verified = ?, verified_result = 'error' WHERE number = ?"
+                    " AND (verified_result IS NULL OR verified_result = 'error')",
+                    (now(), item["number"]),
+                )
+                continue
             db.x(
                 "UPDATE issues SET verified = ?, verified_result = ? WHERE number = ?",
                 (now(), item["result"], item["number"]),
