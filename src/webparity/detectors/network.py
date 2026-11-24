@@ -21,7 +21,8 @@ Signatures (error unless marked info):
 - ``missing-resources`` / ``missing-resources-few`` (info, one or two - nearly always tracking loaded on consent or
   timing): scripts and stylesheets from the site that only the reference fetched, not via <link> (prefetch/preload),
   only those still in the reference's final DOM, and not Elementor's lightbox/dialog/share-link (a tracking pixel's scan
-  of global objects loads them through a getter in Chromium only, 2026-11-16 and 2026-11-21).
+  of global objects loads them through a getter in Chromium only, 2026-11-16 and 2026-11-21), nor scripts the reference
+  first prefetched through <link rel=prefetch> (Next.js loads a route's chunks once its prefetch has loaded).
 - ``network-loop:<file type>``: the top document fetched the same address at least 50 times (200 when the reference's
   buffer was full) and the reference at most 5 times (#14392: a stylesheet importing itself). Counted from Resource
   Timing, which is per document (an iframe each fetching a player stylesheet once is no loop).
@@ -233,6 +234,15 @@ class Network(Detector):
             in_dom = {norm_url(u) for u in cp.get("dom_resources") or []}
             missing = [u for u in missing if u in in_dom]
         missing = [u for u in missing if not re.search(r"/elementor(-pro)?/.*(share-link|dialog|lightbox)", u)]
+        # Scripts the reference first prefetched through <link rel=prefetch>: Next.js loads a route's chunks once its
+        # prefetch link has loaded, and Ladybird doesn't prefetch, so it loads them on navigation instead (2026-11-24:
+        # feminvest.se, 15 chunks in Chromium and Firefox, none in Ladybird)
+        prefetched = {
+            norm_url(u)
+            for i, u in enumerate(cp.get("resource_list") or [])
+            if (types[i] if i < len(types) else "") == "link"
+        }
+        missing = [u for u in missing if u not in prefetched]
         if len(missing) >= 3 and not full:
             out.append(
                 finding(
