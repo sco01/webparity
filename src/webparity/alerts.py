@@ -12,7 +12,9 @@ Rules (each fires at most one alert at a time):
     successful nightly run in the last 26 hours. A run still ``running`` is not a failure by itself.
 ``probe_down``
     A WebDriver endpoint (``alerts.probe_endpoint``, or ``endpoints.ladybird`` and ``endpoints.chromium`` when that
-    is empty) does not answer ``GET /status`` within 5 seconds.
+    is empty) does not answer ``GET /status`` within 5 seconds, twice in a row 5 seconds apart. The worker starts a
+    new Ladybird WebDriver for every visit, so one refused connection is often just the gap between two visits
+    (2026-11-24: three one-minute alerts in 30 hours, each a second after a visit ended).
 
 Channels: ``alerts.webhook`` gets a POST with JSON ``{rule, state, message, time}`` (state ``firing`` or
 ``resolved``); ``alerts.email`` (``to``, ``from``, ``smtp`` as ``host:port``) gets a plain text mail;
@@ -45,6 +47,7 @@ RULES = ("low_rate", "nightly_failed", "probe_down")
 NIGHTLY_MAX_AGE = 26 * 3600
 NIGHTLY_HUNG = 6 * 3600
 PROBE_TIMEOUT = 5.0
+PROBE_RETRY_DELAY = 5.0
 INTERVAL = 60.0
 
 
@@ -176,14 +179,18 @@ def check_probe(config: dict, db, now: float, prober: Callable[[str], str | None
     threads = []
 
     def run(endpoint: str) -> None:
-        results[endpoint] = prober(endpoint)
+        result = prober(endpoint)
+        if result is not None:
+            time.sleep(PROBE_RETRY_DELAY)
+            result = prober(endpoint)
+        results[endpoint] = result
 
     for endpoint in endpoints:
         t = threading.Thread(target=run, args=(endpoint,), daemon=True)
         t.start()
         threads.append(t)
     for t in threads:
-        t.join(PROBE_TIMEOUT + 2)
+        t.join(2 * PROBE_TIMEOUT + PROBE_RETRY_DELAY + 2)
     down = [f"{e} ({results.get(e) or 'no answer'})" for e in endpoints if e not in results or results[e] is not None]
     if not down:
         return None

@@ -22,6 +22,11 @@ NOW = local(12)
 UP = lambda endpoint: None  # noqa: E731 - every endpoint answers
 
 
+@pytest.fixture(autouse=True)
+def no_retry_wait(monkeypatch):
+    monkeypatch.setattr(alerts, "PROBE_RETRY_DELAY", 0)
+
+
 @pytest.fixture
 def db(tmp_path):
     return DB(tmp_path / "webparity.db")
@@ -205,6 +210,15 @@ def test_probe_down_fires_and_resolves(config, db, status_server):
     changes = alerts.step(config, db, NOW + 60, notifier=notified)
     assert [(a.rule, a.state) for a in changes] == [("probe_down", "resolved")]
     assert notified.calls == [[("probe_down", "firing")], [("probe_down", "resolved")]]
+
+
+def test_probe_down_needs_two_failures(config, db, monkeypatch):
+    monkeypatch.setattr(alerts, "PROBE_RETRY_DELAY", 0)
+    config["alerts"]["probe_endpoint"] = "http://lb:9616"
+    answers = iter(["Connection refused", None])
+    assert alerts.check_probe(config, db, NOW, prober=lambda e: next(answers)) is None
+    answers = iter(["Connection refused", "Connection refused"])
+    assert alerts.check_probe(config, db, NOW, prober=lambda e: next(answers)).rule == "probe_down"
 
 
 def test_probe_endpoints_default_to_browsers(config):
