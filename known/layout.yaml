@@ -970,3 +970,54 @@
         return what + ' out of flow inside "' + before.data.slice(-15) + '|' + after.data.slice(0, 15) + '"';
     }
     return false;
+
+# 2026-11-24 (draft prewrap-hangande-mellanslag, from mobile-overflow): the white space that hangs at the end of a
+# white-space: pre-wrap line adds to the scrollable overflow in Ladybird, not in Chromium or Firefox
+# (ludvikatennisklubb.se: headings followed by dozens of spaces, the page 681 px wide at 390). Runs in Ladybird at mobile
+# width: a run of at least three preserved spaces in a pre-wrap text that reaches past the viewport's right edge, while the
+# document scrolls sideways.
+- id: prewrap-hanging-spaces-overflow
+  issue: "draft:prewrap-hangande-mellanslag"
+  text: "white space hanging at the end of a pre-wrap line adds to the scrollable overflow → sideways scrolling"
+  prefix: ["mobile-overflow", "overflow"]
+  run_in: ladybird
+  mobile: true
+  js: |
+    const W = document.documentElement.clientWidth;
+    if (document.documentElement.scrollWidth <= W + 1) return false;
+    const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let t, n = 0;
+    while ((t = w.nextNode()) && ++n < 20000) {
+      const p = t.parentElement; if (!p) continue;
+      const s = getComputedStyle(p);
+      if (s.whiteSpaceCollapse !== 'preserve' || s.textWrapMode !== 'wrap') continue;
+      const re = /[ \t]{3,}/g; let m;
+      while ((m = re.exec(t.data))) {
+        const r = document.createRange(); r.setStart(t, m.index); r.setEnd(t, m.index + m[0].length);
+        const b = r.getBoundingClientRect();
+        if (b.right > W + 1 && b.width > 0) return 'pre-wrap spaces after "' + t.data.slice(Math.max(0, m.index - 15), m.index).trim() + '" reach x ' + Math.round(b.right);
+      }
+    }
+    return false;
+
+# 2026-11-24 (draft anonym-tabell-cellbredd, from mobile-overflow): a display: table-cell child of an inline-block with a
+# definite width (an anonymous table) gets its max-content width in Ladybird (bokavilla.se: Beaver Builder's Icon module,
+# .fl-icon-wrap with the text as a table cell, the texts on one line off the screen). Runs in Ladybird: such a cell wider
+# than its inline-block parent.
+- id: table-cell-in-fixed-inline-block
+  issue: "draft:anonym-tabell-cellbredd"
+  text: "a table-cell child of a fixed-width inline-block gets its max-content width"
+  prefix: ["mobile-overflow", "overflow", "mobile-layout:", "layout:"]
+  run_in: ladybird
+  js: |
+    let n = 0;
+    for (const e of document.body.querySelectorAll('*')) {
+      if (++n > 5000) break;
+      const s = getComputedStyle(e);
+      if (s.display !== 'table-cell' || !e.parentElement) continue;
+      const p = e.parentElement, ps = getComputedStyle(p);
+      if (ps.display !== 'inline-block') continue;
+      const pw = p.getBoundingClientRect().width, r = e.getBoundingClientRect();
+      if (r.right > p.getBoundingClientRect().right + 1 && r.width > 0) return 'table-cell ' + Math.round(r.width) + ' px in an inline-block ' + Math.round(pw) + ' px (' + String(p.className).slice(0, 30) + ')';
+    }
+    return false;
