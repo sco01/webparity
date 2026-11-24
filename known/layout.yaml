@@ -1093,7 +1093,7 @@
 # `[placeholder] { container-type: inline-size }`: cerabad, cmwab, beesweet, allmetall). Runs in Ladybird: such an input
 # taller than 100 px.
 - id: input-inline-size-containment-height
-  issue: "draft:input-container-type"
+  issue: "#15764"
   text: "a text input with appearance: none and inline-size containment gets a 150px content height"
   prefix: ["layout:", "mobile-layout:"]
   run_in: ladybird
