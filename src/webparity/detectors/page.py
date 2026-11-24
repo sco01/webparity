@@ -8,8 +8,10 @@ Signatures (error unless marked info):
   and are not investigated further.
 - ``different-final-site`` (info): the browsers ended on different sites; nothing else is compared.
 - ``not-loading:<reason>``: the page doesn't load in Ladybird but does in the reference. Reasons from the log:
-  ``http2``, ``ssl``, ``connection``, ``dns``, ``timeout``, ``other``; ``crash`` and ``xml-feed`` are info (the crash
-  has its own finding; Ladybird shows RSS/Atom as an empty page, rendering feeds is "not planned").
+  ``http2``, ``ssl``, ``connection``, ``dns``, ``timeout``, ``other``; ``crash``, ``xml-feed`` and ``server-error`` are
+  info (the crash has its own finding; Ladybird shows RSS/Atom as an empty page, rendering feeds is "not planned"; a
+  server's own 5xx page is the server's - the browsers load in parallel, and a reference that gets one only makes the
+  visit incomparable, so these were only ever counted against Ladybird: 2026-11-24, seven 500s, all at one host).
 - ``cookie-banner-locks-page`` (info): a cookie banner locks scrolling in Ladybird and isn't shown in the reference
   (some consent tools show no dialog to headless Chromium); the page height is then not compared.
 - ``less-content``, ``shorter-page``, ``error-reports`` (Sentry and the like), ``error-text:<text>``, ``overflow``
@@ -50,6 +52,11 @@ def cookie_lock(lp: dict, cp: dict) -> bool:
     )
 
 
+SERVER_ERROR = re.compile(
+    r"^\s*(5\d\d\b|Internal Server Error|Bad Gateway|Service (Temporarily )?Unavailable|Gateway Time-?out)", re.I
+)
+
+
 def load_reason(bundle, lp: dict) -> str:
     log = ladybird_log.for_bundle(bundle)
     full = log["full"]
@@ -74,6 +81,8 @@ def load_reason(bundle, lp: dict) -> str:
         reason = "crash"
     elif xml:
         reason = "xml-feed"
+    elif reason == "other" and SERVER_ERROR.search(lp.get("title") or ""):
+        reason = "server-error"
     return reason
 
 
@@ -113,7 +122,7 @@ class Page(Detector):
                     finding(
                         f"not-loading:{reason}",
                         f"The page doesn't load in Ladybird but does in the reference ({reason})",
-                        "info" if reason in ("crash", "xml-feed") else "error",
+                        "info" if reason in ("crash", "xml-feed", "server-error") else "error",
                         title=lp.get("title"),
                         load_error=m(bundle, "ladybird", "load").get("error"),
                         curl_errors=full["curl_errors"],
