@@ -1105,3 +1105,73 @@
       if (h > 100) return 'input ' + Math.round(h) + ' px tall (' + (e.placeholder || e.name || e.type).slice(0, 30) + ')';
     }
     return false;
+
+# 2026-11-24 (draft optimizespeed-kerning, from image-differs): Ladybird turns kerning off under
+# text-rendering: optimizeSpeed (on purpose, like Safari; PR #5236), Chromium and Firefox keep it, so text is wider and
+# headings can wrap differently (sunda.se's hero heading: three lines against two). The "modern CSS reset" sets it on
+# body. Runs in Ladybird: optimizeSpeed with font-kerning auto on the body or a heading.
+- id: optimizespeed-no-kerning
+  issue: "draft:optimizespeed-kerning"
+  text: "text-rendering: optimizeSpeed turns kerning off in Ladybird (Chromium and Firefox keep it)"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page"]
+  run_in: ladybird
+  js: |
+    for (const e of [document.body, ...document.querySelectorAll('h1, h2, h3, p')].slice(0, 200)) {
+      if (!e) continue;
+      const s = getComputedStyle(e);
+      if (s.textRendering.toLowerCase() === 'optimizespeed' && s.fontKerning === 'auto') return 'optimizeSpeed on ' + e.tagName.toLowerCase();
+    }
+    return false;
+
+# 2026-11-24 (draft grid-i-flex-stretch, from image-differs): a grid that is a flexed item of a column flexbox with only
+# a min-height keeps its auto rows at content size in Ladybird (Chromium and Firefox stretch them to the flexed height),
+# so align-items: center can't centre (arbetsnav.se's Tailwind hero at the top). Runs in Ladybird: such a grid whose
+# rows are clearly shorter than its content box.
+- id: grid-flexed-in-min-height-column
+  issue: "draft:grid-i-flex-stretch"
+  text: "a grid flexed inside a min-height column flexbox doesn't stretch its rows"
+  prefix: ["layout:", "mobile-layout:", "image-differs"]
+  run_in: ladybird
+  js: |
+    for (const g of document.querySelectorAll('body *')) {
+      const s = getComputedStyle(g);
+      if (s.display !== 'grid' || !g.parentElement) continue;
+      const p = getComputedStyle(g.parentElement);
+      if (!/flex/.test(p.display) || !/column/.test(p.flexDirection) || p.minHeight === '0px' || p.minHeight === 'auto') continue;
+      if (parseFloat(s.flexGrow) === 0 || s.alignContent !== 'normal') continue;
+      const rows = s.gridTemplateRows.split(' ').map(parseFloat);
+      if (rows.some(isNaN)) continue;
+      const used = rows.reduce((a, b) => a + b, 0) + (rows.length - 1) * (parseFloat(s.rowGap) || 0);
+      const box = g.clientHeight - parseFloat(s.paddingTop) - parseFloat(s.paddingBottom);
+      if (box - used > 20) return 'grid rows ' + Math.round(used) + ' px in a ' + Math.round(box) + ' px grid (' + String(g.className).slice(0, 30) + ')';
+    }
+    return false;
+
+# 2026-11-24 (draft grid-tom-marginal, from image-differs): a grid item clamped by max-height contributes only the
+# max-height to its row in Ladybird, without margins and borders (Wix's horizontal line: height 5px, max-height 5px,
+# border-top and grid margins; danscentrumstockholm.se 40 px). Runs in Ladybird: a grid item with vertical margins whose
+# max-height clamps it and whose single row is no taller than the max-height.
+- id: grid-item-max-height-drops-margins
+  issue: "draft:grid-tom-marginal"
+  text: "a grid item clamped by max-height contributes without its margins and borders"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "shorter-page"]
+  run_in: ladybird
+  js: |
+    let n = 0;
+    for (const e of document.body.querySelectorAll('*')) {
+      if (++n > 6000) break;
+      const s = getComputedStyle(e);
+      if (s.maxHeight === 'none' || !e.parentElement || getComputedStyle(e.parentElement).display !== 'grid') continue;
+      const m = parseFloat(s.marginTop) + parseFloat(s.marginBottom);
+      if (m < 4 || /absolute|fixed/.test(s.position)) continue;
+      const h = e.getBoundingClientRect().height, mh = parseFloat(s.maxHeight);
+      if (isNaN(mh) || h > mh + 2) continue;
+      const g = e.parentElement, r = g.getBoundingClientRect(), er = e.getBoundingClientRect();
+      if (r.height + 1 < h + m && g.children.length === 1) return 'grid item with ' + m + ' px margins in a ' + Math.round(r.height) + ' px grid';
+      if (er.bottom + parseFloat(s.marginBottom) > r.bottom + 2 && g.children.length === 1) return 'grid item margins overflow its grid';
+    }
+    for (const e of document.querySelectorAll('.wixui-horizontal-line')) {
+      const s = getComputedStyle(e);
+      if (s.maxHeight !== 'none' && parseFloat(s.marginTop) + parseFloat(s.marginBottom) >= 4 && getComputedStyle(e.parentElement).display === 'grid') return 'Wix horizontal line with margins in a grid';
+    }
+    return false;
