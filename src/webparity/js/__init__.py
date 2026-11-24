@@ -184,7 +184,9 @@ return {title: document.title.slice(0, 80), url: location.href.slice(0, 300), co
 #       hidden by content-visibility, content-visibility: auto, an input's type (2026-11-22)]
 LAYOUT = r"""
 const MAX = 4000, out = [], REPLACED = /^(IMG|SVG|VIDEO|IFRAME|INPUT|BUTTON|SELECT|TEXTAREA|CANVAS|OBJECT|EMBED|AUDIO|PROGRESS|METER)$/;
-const SKIP = /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|LINK|META|HEAD|TITLE|BR|WBR)$/;
+// SOURCE, TRACK, PARAM (2026-11-24): never painted unless styled; Ladybird gives an empty inline <source> in a <picture>
+// a line-high box where Chromium and Firefox give 0 x 0 (musikisyd's magazine cover, layout:extra), with no visible effect.
+const SKIP = /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|LINK|META|HEAD|TITLE|BR|WBR|SOURCE|TRACK|PARAM)$/;
 const CAROUSEL = ['flickity-viewport', 'slick-list', 'swiper-wrapper', 'splide__track', 'owl-stage-outer', 'glide__track', 'carousel-inner', 'slideshow', 'n2-ss-slider-1', 'et_pb_slides', 'uk-slideshow-items', 'uk-slider-items', 'slideshow-container'];
 // jQuery Cycle marks the slides, not the viewport (2026-11-22: byggnyheter's header)
 const CAROUSEL_SLIDE = 'cycle-slide';
