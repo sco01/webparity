@@ -11,7 +11,10 @@ Signatures (error unless marked info):
   images for rules that match nothing, #14069). The initiator of Ladybird's extra entries tells CSS backgrounds from
   <img>; the reference is compared per file type, since the browsers set initiatorType differently.
 - ``fewer-resources``: fewer resources than the reference, without <link> prefetches (Speculation Rules and quicklink
-  prefetch internal pages in Chromium; Ladybird doesn't prefetch).
+  prefetch internal pages in Chromium; Ladybird doesn't prefetch). Info when the page doesn't also look different (no
+  layout, mobile layout or image finding; 2026-11-24, 42 sites: the reference's extra entries were its preload scanner
+  fetching scripts that the page then turned into ``text/lazyload``, fonts no element used, lazy images further down,
+  and SVG sprites for ``<use href>``, which Ladybird renders without a Resource Timing entry).
 - ``failed-loads``: loads that failed in Ladybird (log) that the reference loaded - not those the reference failed too,
   not hosts that don't resolve (``reload.unresolvable_hosts``, looked up during the visit), and not localhost or private
   addresses.
@@ -84,6 +87,19 @@ def public_page_private_resource(resource_url: str, page_url: str) -> bool:
     """A resource on a private host loaded by a page on a public one. A page served from a private host itself (the
     canary) is judged as usual."""
     return private_host(urlsplit(resource_url).hostname or "") and not private_host(urlsplit(page_url).hostname or "")
+
+
+def looks_different(bundle) -> bool:
+    """Whether the page also looks different in Ladybird: a layout, mobile layout or image finding (not one inside an
+    embedded PDF viewer)."""
+    from webparity.detectors.image import image_findings
+    from webparity.detectors.layout import layout_findings
+    from webparity.detectors.mobile import mobile_findings
+
+    return any(
+        f.signature.startswith(("layout:", "mobile-layout:", "image-differs")) and not (f.data or {}).get("pdf_viewer")
+        for f in layout_findings(bundle) + mobile_findings(bundle) + image_findings(bundle)
+    )
 
 
 class Network(Detector):
@@ -162,12 +178,15 @@ class Network(Detector):
 
         lr, cr = without_link(lp), without_link(cp)
         if not full and cr - lr >= 10 and lr < 0.7 * cr:
+            visible = looks_different(bundle)
             out.append(
                 finding(
                     "fewer-resources",
                     "Fewer resources fetched than in the reference (without link prefetches)",
+                    "error" if visible else "info",
                     resources=[lr, cr],
                     total=[lp.get("resources_total"), cp.get("resources_total")],
+                    **({} if visible else {"no_visible_difference": True}),
                 )
             )
         # Loads that failed in Ladybird but the reference loaded (not those the reference failed too, e.g. blocked

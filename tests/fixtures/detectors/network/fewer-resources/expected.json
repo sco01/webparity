@@ -3,5 +3,8 @@
  "must": [
   "fewer-resources"
  ],
- "must_not": []
+ "must_not": [],
+ "categories": {
+  "fewer-resources": "info"
+ }
 }
