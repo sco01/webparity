@@ -920,3 +920,53 @@
     const s = getComputedStyle(e);
     if (s.animationName === 'none' || (s.overflowX === 'visible' && s.overflowY === 'visible')) return false;
     return e.tagName.toLowerCase() + ' animation ' + s.animationName + ', overflow ' + s.overflowX + ' ' + s.overflowY;
+
+# 2026-11-24 (draft abspos-i-ord, from mobile-overflow): an absolutely positioned box or float between two parts of an
+# unbreakable run ends the run when Ladybird measures it, so the run stays on a line too short for it
+# (carolinemartensson.se, allmanhandling.se: a::after { position: absolute } underline effects followed by ",&nbsp;").
+# Runs in Ladybird at mobile width: an out-of-flow box (an empty element, or an ::after with content) with non-white-space
+# text right before and after it, in a paragraph whose text runs past the viewport's right edge.
+- id: out-of-flow-box-inside-word
+  issue: "draft:abspos-i-ord"
+  text: "an absolutely positioned box or float inside a word → the line doesn't break before the word and overflows"
+  prefix: ["mobile-overflow", "overflow", "mobile-layout:", "layout:"]
+  run_in: ladybird
+  mobile: true
+  js: |
+    const W = document.documentElement.clientWidth;
+    const isOut = s => s.position === 'absolute' || s.position === 'fixed' || s.cssFloat !== 'none';
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const deepest = e => { let d = e; while (d.lastChild) d = d.lastChild; return d; };
+    const textFrom = (node, forward) => { walker.currentNode = node; let t;
+      while ((t = forward ? walker.nextNode() : walker.previousNode())) if (t.data.length) return t; return null; };
+    const solid = (t, end) => t && (end ? /\S$/ : /^\S/).test(t.data.replace(/ /g, 'x'));
+    const overflows = t => { const b = t.parentElement && t.parentElement.closest('p, li, div, td, th, h1, h2, h3, h4, h5, h6');
+      if (!b) return false;
+      for (let a = b; a && a !== document.body; a = a.parentElement) if (getComputedStyle(a).overflowX !== 'visible') return false;
+      const r = document.createRange(); r.selectNodeContents(b); return r.getBoundingClientRect().right > W + 1; };
+    const hasBefore = e => { const q = getComputedStyle(e, '::before'); return q.content !== 'none' && q.content !== 'normal' && !isOut(q); };
+    let n = 0;
+    for (const e of document.body.querySelectorAll('*')) {
+      if (++n > 5000) break;
+      const s = getComputedStyle(e);
+      if (s.display === 'none') continue;
+      let before = null, after = null, what = '';
+      const parent = e.parentElement;
+      if (isOut(s) && parent && getComputedStyle(parent).display.startsWith('inline')) {
+        // Its own text (a visually hidden label) is out of flow too; what counts is the flow around it, which can start
+        // with the inline parent's ::before (an icon).
+        before = textFrom(e, false); after = textFrom(deepest(e), true);
+        if (before && !(before.compareDocumentPosition(parent) & Node.DOCUMENT_POSITION_CONTAINS) && parent.firstChild === e && hasBefore(parent)) before = { data: 'x' };
+        if (after && e.contains(after)) after = null;
+        what = e.tagName.toLowerCase();
+      } else if (s.display === 'inline') {
+        const a = getComputedStyle(e, '::after');
+        if (a.content === 'none' || a.content === 'normal' || !isOut(a)) continue;
+        const d = deepest(e); before = d.nodeType === 3 ? d : textFrom(d, false); after = textFrom(d, true);
+        if (!before || !e.contains(before)) continue;
+        what = e.tagName.toLowerCase() + '::after';
+      } else continue;
+      if (solid(before, true) && solid(after, false) && overflows(after))
+        return what + ' out of flow inside "' + before.data.slice(-15) + '|' + after.data.slice(0, 15) + '"';
+    }
+    return false;
