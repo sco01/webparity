@@ -28,6 +28,7 @@ worker:
 
 # New sites from the visits: linked domains (these top-level domains) and two sub pages per front page, never
 # more than per_domain rows per registrable domain. `webparity sites discover --since DAY` does it for saved visits.
+# Quote the TLDs: YAML reads a bare no as false.
 # discover: {enabled: true, tlds: [se], per_visit: 15, per_domain: 5, subpages: 2, skip_domains: []}
 
 web:
