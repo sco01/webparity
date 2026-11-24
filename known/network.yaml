@@ -93,9 +93,12 @@
   prefix: ["layout:", "image-differs", "less-content", "shorter-page", "overflow", "fewer-resources", "zero-size-text",
            "mobile-layout:", "mobile-overflow"]
   run_in: ladybird
+  mobile: true
   js: |
-    if (innerWidth < 1000 || !document.body) return false;
-    if (document.body.classList.contains('device-mobile-optimized')) return 'wix';
+    if (!document.body) return false;
+    // 2026-11-24: in the mobile view Wix gives Ladybird "device-mobile-responsive" and the reference plain "responsive".
+    if (/\bdevice-mobile-(optimized|responsive)\b/.test(document.body.className)) return 'wix';
+    if (innerWidth < 1000) return false;
     // 2026-11-16: an ASP.NET site sends "Ladybird" in the UA to /Mobile/Index with a 302.
     if (/^\/mobile(\/|$)/i.test(location.pathname)) return 'mobile url ' + location.pathname.slice(0, 40);
     const m = [...document.styleSheets].map(s => s.href || '').find(h => /main\.mobile-|\.mobile_[0-9a-f]{8}/.test(h));
