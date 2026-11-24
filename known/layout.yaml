@@ -1044,3 +1044,25 @@
       return 'line clamp ' + lines + ' at ' + Math.round(lh) + ' px, but ' + e.clientHeight + ' px high (' + String(e.className).slice(0, 30) + ')';
     }
     return false;
+
+# 2026-11-24 (draft fast-tabell-procent, from mobile-layout:height:flex>flex): in a table-layout: fixed table whose cell
+# percentages add up to more than 100% (every cell width: 100%), Chromium and Firefox scale them down and Ladybird clamps
+# them in order, so the last columns get ~0 px (jnjvisionpro.com: the spec table's Description column, one letter per
+# line). Runs in Ladybird: a fixed-layout table with a first-row cell whose content box is under 8 px but has text.
+- id: fixed-table-percentages-over-100
+  issue: "draft:fast-tabell-procent"
+  text: "a fixed-layout table whose column percentages exceed 100% leaves the last columns ~0 px wide"
+  prefix: ["mobile-layout:", "layout:", "overflow", "mobile-overflow"]
+  run_in: ladybird
+  js: |
+    for (const t of document.querySelectorAll('table')) {
+      if (getComputedStyle(t).tableLayout !== 'fixed' || !t.rows.length) continue;
+      const cells = [...t.rows[0].cells];
+      if (cells.length < 2) continue;
+      for (const c of cells) {
+        const s = getComputedStyle(c);
+        const w = c.getBoundingClientRect().width - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
+        if (w < 8 && c.textContent.trim().length > 3) return 'fixed table cell ' + Math.round(w) + ' px wide: ' + c.textContent.trim().slice(0, 30);
+      }
+    }
+    return false;
