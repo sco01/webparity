@@ -1128,7 +1128,7 @@
 # so align-items: center can't centre (arbetsnav.se's Tailwind hero at the top). Runs in Ladybird: such a grid whose
 # rows are clearly shorter than its content box.
 - id: grid-flexed-in-min-height-column
-  issue: "draft:grid-i-flex-stretch"
+  issue: "#15798"
   text: "a grid flexed inside a min-height column flexbox doesn't stretch its rows"
   prefix: ["layout:", "mobile-layout:", "image-differs"]
   run_in: ladybird
@@ -1152,7 +1152,7 @@
 # border-top and grid margins; danscentrumstockholm.se 40 px). Runs in Ladybird: a grid item with vertical margins whose
 # max-height clamps it and whose single row is no taller than the max-height.
 - id: grid-item-max-height-drops-margins
-  issue: "draft:grid-tom-marginal"
+  issue: "#15799"
   text: "a grid item clamped by max-height contributes without its margins and borders"
   prefix: ["layout:", "mobile-layout:", "image-differs", "shorter-page"]
   run_in: ladybird
