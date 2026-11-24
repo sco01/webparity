@@ -1021,3 +1021,26 @@
       if (r.right > p.getBoundingClientRect().right + 1 && r.width > 0) return 'table-cell ' + Math.round(r.width) + ' px in an inline-block ' + Math.round(pw) + ' px (' + String(p.className).slice(0, 30) + ')';
     }
     return false;
+
+# 2026-11-24 (draft line-clamp-tom-rad, from layout:height:block>block): -webkit-line-clamp has no effect when the last
+# line to keep is a blank line of collapsed white space and a <br> (visittingsryd.se, CBIS's description module: the text
+# shows in full and the site hides its "Read more" button). Runs in Ladybird: a box with a line clamp that is taller than
+# its clamp in lines (by its line-height), whose text has a newline right after a <br>.
+- id: line-clamp-blank-line
+  issue: "draft:line-clamp-tom-rad"
+  text: "-webkit-line-clamp has no effect when the last line to keep is a blank line (newline and <br>)"
+  prefix: ["layout:", "mobile-layout:", "less-content", "shorter-page", "image-differs"]
+  run_in: ladybird
+  js: |
+    let n = 0;
+    for (const e of document.body.querySelectorAll('*')) {
+      if (++n > 5000) break;
+      const s = getComputedStyle(e);
+      const lines = parseInt(s.webkitLineClamp || s.getPropertyValue('-webkit-line-clamp'), 10);
+      if (!lines || s.overflow === 'visible') continue;
+      const lh = parseFloat(s.lineHeight) || parseFloat(s.fontSize) * 1.2;
+      if (!lh || e.clientHeight <= lines * lh + 2) continue;
+      if (!/<br[^>]*>\s*\n/i.test(e.innerHTML)) continue;
+      return 'line clamp ' + lines + ' at ' + Math.round(lh) + ' px, but ' + e.clientHeight + ' px high (' + String(e.className).slice(0, 30) + ')';
+    }
+    return false;
