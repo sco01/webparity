@@ -815,18 +815,23 @@
 # content and aligns it in Chromium; Ladybird and Firefox ignore it there, so the box stays as wide as its container (two
 # sites with the same theme: footer menu links with justify-self: start, no visible difference). Runs in the reference
 # browser: a block-level box in a block container with a non-default justify-self that is narrower than its container.
+# 2026-11-24: also justify-items on the container (the child's justify-self stays auto; fiskekrogen.se:
+# .fk-section.text { justify-items: center } centres its 1400 px wrapper as 588 px in Chromium only).
 - id: justify-self-in-block-layout
   issue: "missing-feature:justify-self-block"
   text: "justify-self on block-level boxes in block layout (Chromium only; Ladybird and Firefox ignore it)"
   prefix: ["layout:width:", "mobile-layout:width:"]
   js: |
     for (const e of document.querySelectorAll('body *')) {
-      const s = getComputedStyle(e);
-      if (!/^(start|end|center|left|right|self-start|self-end|flex-start|flex-end)$/.test(s.justifySelf)) continue;
+      const s = getComputedStyle(e), p = e.parentElement;
+      if (!p) continue;
+      const ps = getComputedStyle(p);
+      const own = s.justifySelf !== 'auto', j = own ? s.justifySelf : ps.justifyItems;
+      if (!/^(start|end|center|left|right|self-start|self-end|flex-start|flex-end)$/.test(j)) continue;
       if (!/^(block|flex|grid|table|flow-root|list-item)$/.test(s.display) || s.float !== 'none' || /absolute|fixed/.test(s.position)) continue;
-      const p = e.parentElement; if (!p || !/^(block|list-item|flow-root)$/.test(getComputedStyle(p).display)) continue;
+      if (!/^(block|list-item|flow-root)$/.test(ps.display)) continue;
       const w = e.getBoundingClientRect().width, pw = p.clientWidth;
-      if (w > 0 && w < pw - 2) return 'justify-self: ' + s.justifySelf + ' on ' + (e.classList[0] || e.tagName.toLowerCase());
+      if (w > 0 && w < pw - 2) return (own ? 'justify-self: ' : 'justify-items: ') + j + ' on ' + (own ? (e.classList[0] || e.tagName.toLowerCase()) : (p.classList[0] || p.tagName.toLowerCase()));
     }
     return false;
 
@@ -1175,3 +1180,25 @@
       if (s.maxHeight !== 'none' && parseFloat(s.marginTop) + parseFloat(s.marginBottom) >= 4 && getComputedStyle(e.parentElement).display === 'grid') return 'Wix horizontal line with margins in a grid';
     }
     return false;
+
+# 2026-11-24 (#15527, filed 2026-11-23; entry added from layout:width:block>block): a var() whose first argument is not a lone custom
+# property name (var(--col-gap 0px), a missing comma) makes the declaration invalid at parse time in Chromium and Firefox,
+# which drop it; Ladybird keeps it, so it wins the cascade and becomes invalid at computed-value time (unset). The Rey
+# theme's boxed-section rule has max-width: calc(... + var(--col-gap 0px) - ...), so Elementor sections lose their max-width
+# and text runs the full width (smilingfaces.se: 1382 px against 870). Runs in Ladybird: a style rule that matches an
+# element with a declaration containing var( followed by a custom property name and then something other than , or ).
+- id: var-without-comma-kept
+  issue: "#15527"
+  text: "a declaration with an invalid var() (var(--a 0px), missing comma) is kept instead of dropped (#15527)"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "overflow", "mobile-overflow"]
+  run_in: ladybird
+  js: |
+    const bad = /var\(\s*(--[\w-]+\s+[^\s,)]|[^\s-])/;
+    let found = null;
+    const walk = list => { for (const r of list) { if (found) return;
+      if (r.cssRules && !r.style) { walk(r.cssRules); continue; }
+      if (!r.style || !r.selectorText || !bad.test(r.style.cssText)) continue;
+      try { if (!document.querySelector(r.selectorText)) continue; } catch (e) { continue; }
+      const t = r.style.cssText, i = t.search(bad); found = r.selectorText.slice(0, 40) + ' { ' + t.slice(Math.max(0, i - 30), i + 40) + ' }'; } };
+    for (const s of document.styleSheets) { try { walk(s.cssRules); } catch (e) {} if (found) break; }
+    return found || false;
