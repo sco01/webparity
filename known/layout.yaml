@@ -1050,7 +1050,7 @@
 # them in order, so the last columns get ~0 px (jnjvisionpro.com: the spec table's Description column, one letter per
 # line). Runs in Ladybird: a fixed-layout table with a first-row cell whose content box is under 8 px but has text.
 - id: fixed-table-percentages-over-100
-  issue: "draft:fast-tabell-procent"
+  issue: "#15743"
   text: "a fixed-layout table whose column percentages exceed 100% leaves the last columns ~0 px wide"
   prefix: ["mobile-layout:", "layout:", "overflow", "mobile-overflow"]
   run_in: ladybird
@@ -1072,7 +1072,7 @@
 # and Firefox keep the inline content on one line (medskapandebyran.se's member list). Runs in Ladybird: such a box with
 # an inline-type element child next to other inline content.
 - id: vertical-webkit-box-without-clamp
-  issue: "draft:webkit-box-vertikal-inline"
+  issue: "#15754"
   text: "a vertical -webkit-box without a line clamp puts each inline child on its own line"
   prefix: ["layout:", "mobile-layout:"]
   run_in: ladybird
