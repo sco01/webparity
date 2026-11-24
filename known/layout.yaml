@@ -927,7 +927,7 @@
 # Runs in Ladybird at mobile width: an out-of-flow box (an empty element, or an ::after with content) with non-white-space
 # text right before and after it, in a paragraph whose text runs past the viewport's right edge.
 - id: out-of-flow-box-inside-word
-  issue: "draft:abspos-i-ord"
+  issue: "#15632"
   text: "an absolutely positioned box or float inside a word → the line doesn't break before the word and overflows"
   prefix: ["mobile-overflow", "overflow", "mobile-layout:", "layout:"]
   run_in: ladybird
@@ -977,7 +977,7 @@
 # width: a run of at least three preserved spaces in a pre-wrap text that reaches past the viewport's right edge, while the
 # document scrolls sideways.
 - id: prewrap-hanging-spaces-overflow
-  issue: "draft:prewrap-hangande-mellanslag"
+  issue: "#15635"
   text: "white space hanging at the end of a pre-wrap line adds to the scrollable overflow → sideways scrolling"
   prefix: ["mobile-overflow", "overflow"]
   run_in: ladybird
@@ -1005,7 +1005,7 @@
 # .fl-icon-wrap with the text as a table cell, the texts on one line off the screen). Runs in Ladybird: such a cell wider
 # than its inline-block parent.
 - id: table-cell-in-fixed-inline-block
-  issue: "draft:anonym-tabell-cellbredd"
+  issue: "#15634"
   text: "a table-cell child of a fixed-width inline-block gets its max-content width"
   prefix: ["mobile-overflow", "overflow", "mobile-layout:", "layout:"]
   run_in: ladybird
