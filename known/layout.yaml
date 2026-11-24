@@ -1027,7 +1027,7 @@
 # shows in full and the site hides its "Read more" button). Runs in Ladybird: a box with a line clamp that is taller than
 # its clamp in lines (by its line-height), whose text has a newline right after a <br>.
 - id: line-clamp-blank-line
-  issue: "draft:line-clamp-tom-rad"
+  issue: "#15648"
   text: "-webkit-line-clamp has no effect when the last line to keep is a blank line (newline and <br>)"
   prefix: ["layout:", "mobile-layout:", "less-content", "shorter-page", "image-differs"]
   run_in: ladybird
