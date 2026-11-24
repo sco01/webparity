@@ -1087,3 +1087,21 @@
       if (kids.length >= 2 && kids.some(c => c.nodeType === 1)) return 'vertical -webkit-box with ' + kids.length + ' inline children (' + String(e.className).slice(0, 30) + ')';
     }
     return false;
+
+# 2026-11-24 (draft input-container-type, from layout:height:flex>block): a text input with appearance: none and
+# inline-size containment gets a 150 px content height in Ladybird (a site builder's global
+# `[placeholder] { container-type: inline-size }`: cerabad, cmwab, beesweet, allmetall). Runs in Ladybird: such an input
+# taller than 100 px.
+- id: input-inline-size-containment-height
+  issue: "draft:input-container-type"
+  text: "a text input with appearance: none and inline-size containment gets a 150px content height"
+  prefix: ["layout:", "mobile-layout:"]
+  run_in: ladybird
+  js: |
+    for (const e of document.querySelectorAll('input')) {
+      const s = getComputedStyle(e);
+      if (s.appearance !== 'none' || !/inline-size|size/.test(s.containerType + ' ' + s.contain)) continue;
+      const h = e.getBoundingClientRect().height;
+      if (h > 100) return 'input ' + Math.round(h) + ' px tall (' + (e.placeholder || e.name || e.type).slice(0, 30) + ')';
+    }
+    return false;
