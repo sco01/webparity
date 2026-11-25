@@ -178,3 +178,22 @@
       const r = e.getBoundingClientRect(); if (r.width > 5 && r.height > 5) return 'unmute button ' + String(e.className).slice(0, 50);
     }
     return false;
+
+# 2026-11-25: a measurement artefact. Chromium does not start a muted autoplay video outside the viewport (it plays once
+# scrolled into view); Ladybird plays it at once. Until it plays, Chromium sizes the video by its poster, so a page whose
+# poster is a broken placeholder (data:image/gif,AAAA) gets a 150 px box in Chromium and the video's own aspect ratio in
+# Ladybird (552×150 against 552×555). Runs in the reference browser: a paused autoplay+muted video below or above the
+# viewport, with its data loaded, whose box is more than 20 px off the video's aspect ratio.
+- id: offscreen-muted-autoplay-paused-in-reference
+  issue: "measurement-autoplay"
+  text: "Chromium holds back a muted autoplay video outside the viewport, so it keeps its poster size"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "shorter-page"]
+  js: |
+    for (const v of document.querySelectorAll('video[autoplay][muted]')) {
+      const r = v.getBoundingClientRect();
+      if (!v.paused || v.readyState < 1 || !v.videoWidth || r.width < 50) continue;
+      if (r.bottom > 0 && r.top < innerHeight) continue;
+      const h = r.width * v.videoHeight / v.videoWidth;
+      if (Math.abs(h - r.height) > 20) return 'paused offscreen video ' + Math.round(r.width) + '×' + Math.round(r.height) + ', ratio gives ' + Math.round(h);
+    }
+    return false;
