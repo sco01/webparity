@@ -92,7 +92,7 @@
 # opened and written, then closed when the written script posts "ready"). Runs in the reference browser: an iframe with
 # a srcdoc attribute whose document is no longer about:srcdoc, i.e. it was replaced by document.open().
 - id: document-open-during-srcdoc-navigation
-  issue: "draft:srcdoc-open-race"
+  issue: "#15986"
   text: "document.open() during an iframe's srcdoc navigation – the written scripts never run and the load event never fires"
   prefix: ["slow-load", "not-loading"]
   js: |
