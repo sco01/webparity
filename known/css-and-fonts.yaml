@@ -32,24 +32,41 @@
 - id: metric-font-aliases-not-followed
   issue: "#14680"
   text: "Arial/Times New Roman/Courier New do not follow fontconfig aliases"
-  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "zero-size-text", "overflow"]
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "zero-size-text", "overflow",
+           "mobile-overflow"]
   js: |
-    // what differs: Ladybird skips the family; the next generic family in the stack (with none: sans-serif, Ladybird's
-    // default) decides – only visible when it is not the alias's own category
+    // 2026-11-25: the stack is walked as the browsers do (a site: -apple-system, Segoe UI, Roboto, Helvetica Neue, Arial,
+    // Noto Sans, sans-serif – the first four are not installed, the reference takes Arial = Liberation Sans, Ladybird
+    // skips it and takes Noto Sans, so a long heading word overflows the mobile page). Installed is measured with a
+    // canvas: a family that changes the width against two different fallbacks.
     const TARGET = {'arial': 'sans-serif', 'times new roman': 'serif', 'courier new': 'monospace'};
     const GEN = ['sans-serif', 'serif', 'monospace', 'cursive', 'fantasy', 'system-ui', 'ui-sans-serif', 'ui-serif', 'ui-monospace'];
     const web = new Set([...document.fonts].map(f => f.family.replace(/["']/g, '').toLowerCase()));
-    // the reference browser reports its default as "Times New Roman" – the same font as Ladybird's serif, no difference (2026-11-14)
+    const ctx = document.createElement('canvas').getContext('2d');
+    const S = 'mmmmmmmmmmlliiWWwQq0123456789 monteringsanvisningar';
+    const width = font => { ctx.font = '700 40px ' + font; return ctx.measureText(S).width; };
+    const cache = new Map();
+    const installed = f => {
+      if (GEN.includes(f) || web.has(f)) return true;
+      if (!cache.has(f)) cache.set(f, width('"' + f + '", serif') !== width('serif') || width('"' + f + '", monospace') !== width('monospace'));
+      return cache.get(f);
+    };
     const probe = document.createElement('span'); probe.style.fontFamily = 'initial'; document.documentElement.appendChild(probe);
     const standard = getComputedStyle(probe).fontFamily; probe.remove();
+    const seen = new Set();
     for (const e of document.querySelectorAll('body *')) {
       if (![...e.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())) continue;
       const r = e.getBoundingClientRect(); if (r.width < 1 || r.height < 1) continue;
-      if (getComputedStyle(e).fontFamily === standard) continue;
-      const fam = getComputedStyle(e).fontFamily.split(',').map(x => x.trim().replace(/["']/g, '').toLowerCase());
-      const first = fam[0]; if (!TARGET[first] || web.has(first)) continue;
-      const gen = fam.slice(1).find(x => GEN.includes(x)) || 'sans-serif';
-      if (gen !== TARGET[first]) return fam.slice(0, 4).join(', ') + ' → ' + gen;
+      const ff = getComputedStyle(e).fontFamily;
+      if (ff === standard || seen.has(ff)) continue;
+      seen.add(ff);
+      const fam = ff.split(',').map(x => x.trim().replace(/["']/g, '').toLowerCase()).filter(Boolean);
+      const at = fam.findIndex(installed);
+      if (at < 0 || !TARGET[fam[at]] || web.has(fam[at])) continue;
+      // what Ladybird takes instead: the next installed family that is not another alias, else sans-serif
+      const next = fam.slice(at + 1).find(f => installed(f) && !TARGET[f]) || 'sans-serif';
+      const q = f => GEN.includes(f) ? f : '"' + f + '"';
+      if (Math.abs(width(q(fam[at])) - width(q(next))) > 1) return fam.slice(0, at + 2).join(', ') + ' → ' + next;
     }
     return false;
 
