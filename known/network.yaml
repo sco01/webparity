@@ -86,6 +86,32 @@
       if (e.__vue__ && e.outerHTML.length > 150000) return 'vue2 template ' + Math.round(e.outerHTML.length / 1000) + ' kB';
     return false;
 
+# 2026-11-25: document.open() on an iframe whose srcdoc navigation is still in flight doesn't stop it: the srcdoc
+# document can replace the written one, or the written document's script fetch is cancelled, its parser waits forever and
+# the page's load event never fires (Connatix's video player: iframes with src="javascript:false" srcdoc="" that are
+# opened and written, then closed when the written script posts "ready"). Runs in the reference browser: an iframe with
+# a srcdoc attribute whose document is no longer about:srcdoc, i.e. it was replaced by document.open().
+- id: document-open-during-srcdoc-navigation
+  issue: "draft:srcdoc-open-race"
+  text: "document.open() during an iframe's srcdoc navigation – the written scripts never run and the load event never fires"
+  prefix: ["slow-load", "not-loading"]
+  js: |
+    const frames = (doc, depth) => {
+      const out = [];
+      for (const f of doc.querySelectorAll('iframe[srcdoc]')) {
+        let d = null;
+        try { d = f.contentDocument; } catch (e) {}
+        if (d && d.URL !== 'about:srcdoc') return 'opened srcdoc iframe ' + (f.className || f.id || '').toString().slice(0, 40);
+        if (d && depth < 3) out.push(d);
+      }
+      for (const f of doc.querySelectorAll('iframe:not([srcdoc])')) {
+        try { if (f.contentDocument && depth < 3) out.push(f.contentDocument); } catch (e) {}
+      }
+      for (const d of out) { const r = frames(d, depth + 1); if (r) return r; }
+      return false;
+    };
+    return frames(document, 0);
+
 # Mobile view (2026-11-10): the reference browser gets the desktop version at 390 px.
 - id: server-sends-mobile-version-to-ladybird
   issue: "#14443"
