@@ -280,3 +280,26 @@
   js: |
     const e = [...document.querySelectorAll('[style*="line-height"]')].filter(x => /^0?\.\d+$/.test(x.style.lineHeight) && parseFloat(x.style.lineHeight) < 0.3);
     return e.length ? 'inline line-height ' + e[0].style.lineHeight + ' ×' + e.length : false;
+
+# 2026-11-25: draft pseudo-anim-var-content. A ::before/::after whose content is none through var() is not generated,
+# but Ladybird still runs its CSS animations and fires animationstart/animationend (content: none written directly is
+# fine). Avada's autoplaying tabs open the next tab on animationend of the active link's ::after, whose content is
+# var(--awb-tabs-running, none), so in Ladybird they advance while off screen (theme-fusion.com: tab pane 2 shown).
+# Runs in the reference browser: a rule for ::before/::after with content: var(...) and an animation, whose
+# pseudo-element computes to content none on a matching element.
+- id: animation-on-pseudo-with-var-content-none
+  issue: "draft:pseudo-anim-var-content"
+  text: "a ::before/::after with content none through var() still runs its animations (Avada's autoplaying tabs advance)"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page"]
+  js: |
+    const rules = [];
+    const walk = list => { for (const r of list) { if (rules.length > 50) return;
+      if (r.cssRules && !r.style) { walk(r.cssRules); continue; }
+      if (r.selectorText && /::?(before|after)/.test(r.selectorText) && r.style && /var\(/.test(r.style.getPropertyValue('content'))) rules.push(r); } };
+    for (const s of document.styleSheets) { try { walk(s.cssRules); } catch (e) {} }
+    for (const r of rules) for (const part of r.selectorText.split(',')) {
+      const m = part.match(/::?(before|after)\s*$/); if (!m) continue;
+      let els; try { els = document.querySelectorAll(part.replace(/::?(before|after)\s*$/, '') || '*'); } catch (e) { continue; }
+      for (const e of Array.from(els).slice(0, 50)) { const c = getComputedStyle(e, '::' + m[1]);
+        if (c.content === 'none' && c.animationName && c.animationName !== 'none') return part.trim().slice(0, 60) + ' animation ' + c.animationName.slice(0, 30); } }
+    return false;
