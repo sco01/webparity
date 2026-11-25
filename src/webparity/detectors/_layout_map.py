@@ -207,6 +207,17 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
             if abs(lb["h"] - c["h"]) >= 24 or abs(lb["w"] - c["w"]) >= 24:
                 kinds[k] = "other-source"
             continue
+        if (
+            c["display"] == "inline" == lb["display"]
+            and c["tag"] not in REPLACED
+            and not c["text"]
+            and not lb["text"]
+            and zero(lb) != zero(c)
+        ):
+            # An inline element without text of its own whose children are floats or blocks (2026-11-25: dis-mitt.se's
+            # header-content span around two floats - Chromium gives it the floats' area, Ladybird and Firefox 0 x 0):
+            # the box is not comparable, and the children are compared themselves
+            continue
         if c["cva"] and (abs(lb["h"] - c["h"]) >= 24 or abs(lb["w"] - c["w"]) >= 24):
             # content-visibility: auto (2026-11-10): Chromium gives the element a placeholder size off screen - not a
             # cause, but counted as an explanation so the ancestors are not pointed out

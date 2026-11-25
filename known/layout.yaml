@@ -1282,6 +1282,7 @@
   text: "an absolutely positioned box after a space at the end of an overflowing line stays on that line (static position)"
   prefix: ["layout:", "mobile-layout:", "overflow", "mobile-overflow"]
   run_in: ladybird
+  mobile: true
   js: |
     for (const e of document.querySelectorAll('body *')) {
       const s = getComputedStyle(e);
