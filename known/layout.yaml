@@ -1278,7 +1278,7 @@
 # viewport and the mobile page becomes 457 px wide. Runs in Ladybird: an absolutely positioned element preceded by a
 # whitespace text node and an inline sibling that ends past its parent's right edge, starting where that sibling ends.
 - id: abspos-static-position-after-overflowing-line
-  issue: "draft:abspos-statisk-overfull-rad"
+  issue: "#15988"
   text: "an absolutely positioned box after a space at the end of an overflowing line stays on that line (static position)"
   prefix: ["layout:", "mobile-layout:", "overflow", "mobile-overflow"]
   run_in: ladybird

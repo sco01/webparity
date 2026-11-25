@@ -183,7 +183,8 @@ return {title: document.title.slice(0, 80), url: location.href.slice(0, 300), co
 # where a difference starts. Does not descend into svg, iframes, script/style, elements with display: none, maps or
 # carousels.
 # Row: [key, parent index, x, y, w, h, display, position, float, own text length, font size, "children:text prefix",
-#       hidden by content-visibility, content-visibility: auto, an input's type (2026-11-22)]
+#       hidden by content-visibility, content-visibility: auto, an input's type (2026-11-22),
+#       clips its overflow (overflow hidden or clip in either axis, 2026-11-25)]
 LAYOUT = r"""
 const MAX = 4000, out = [], REPLACED = /^(IMG|SVG|VIDEO|IFRAME|INPUT|BUTTON|SELECT|TEXTAREA|CANVAS|OBJECT|EMBED|AUDIO|PROGRESS|METER)$/;
 // SOURCE, TRACK, PARAM (2026-11-24): never painted unless styled; Ladybird gives an empty inline <source> in a <picture>
@@ -222,7 +223,8 @@ while (stack.length && out.length < MAX) {
   const cva = c.contentVisibility === 'auto' ? 1 : 0;
   out.push([pk, pi, Math.round(r.left + sx), Math.round(r.top + sy), Math.round(r.width), Math.round(r.height), c.display, c.position, c.cssFloat,
            text, parseFloat(c.fontSize) || 16, e.childElementCount + ':' + fp.replace(/\s+/g, ' '), hidden, cva,
-           tag === 'INPUT' ? (e.type || '') : tag === 'IMG' ? imgType(e) : '']);
+           tag === 'INPUT' ? (e.type || '') : tag === 'IMG' ? imgType(e) : '',
+           /hidden|clip/.test(c.overflowX + ' ' + c.overflowY) ? 1 : 0]);
   // Maps (2026-11-18): Google Maps and Leaflet put the tiles into the DOM in the order they load, so "tile 7" is a different
   // tile in each browser (positions differed by multiples of 256 px - 2/3 of layout:position:block>block). The map is
   // compared, not the tiles in it.

@@ -96,6 +96,7 @@ def index(rows: list) -> dict:
             "hidden": len(r) > 12 and bool(r[12]),
             "cva": len(r) > 13 and bool(r[13]),
             "type": r[14] if len(r) > 14 else "",
+            "clip": len(r) > 15 and bool(r[15]),
             "fixed": bool(fixed),
             "tag": key.rsplit("/", 1)[-1].split(":")[0].split("#")[0].split(".")[0],
         }
@@ -134,6 +135,21 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
             paired -= inside
     hidden = {k for k in paired if C[k]["hidden"]}
     paired -= hidden
+
+    # Clipped away (2026-11-25: vindobyggvaror.se's closed drop-down menu, a two-column list with max-height: 0 and
+    # overflow: hidden - Chromium lays the third-level list out across overflow columns, Ladybird stacks it, and none of
+    # it is visible): an element inside an ancestor that clips its overflow and has no size in the reference is not
+    # compared.
+    def clipped_away(k):
+        a = C[k]["parent"]
+        while a in C:
+            if C[a]["clip"] and (C[a]["w"] < 1 or C[a]["h"] < 1):
+                return True
+            a = C[a]["parent"]
+        return False
+
+    clipped = {k for k in paired if clipped_away(k)}
+    paired -= clipped
 
     def zero(e):
         return e["w"] < 1 or e["h"] < 1
@@ -307,5 +323,6 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
         "causes": len(causes),
         "unstable_in_reference": unstable,
         "hidden_in_reference": len(hidden),
+        "clipped_in_reference": len(clipped),
         "groups": sorted(groups.values(), key=lambda g: -g["area"])[:12],
     }
