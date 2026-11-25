@@ -1202,3 +1202,30 @@
       const t = r.style.cssText, i = t.search(bad); found = r.selectorText.slice(0, 40) + ' { ' + t.slice(Math.max(0, i - 30), i + 40) + ' }'; } };
     for (const s of document.styleSheets) { try { walk(s.cssRules); } catch (e) {} if (found) break; }
     return found || false;
+
+# 2026-11-25: #15435 (filed by us). Lines holding only a <br> beside a float that takes the container's whole width go
+# beside it in Chromium and Firefox; Ladybird moves the second and later ones below the float (an ASP.NET login control;
+# a contest site's 975 px float table in a 380 px mobile column, its news column 32 px lower). Runs in the reference
+# browser: a <br> right after another <br> whose line sits beside a float covering the whole width of the br's parent.
+- id: br-lines-beside-full-width-float
+  issue: "#15435"
+  text: "lines holding only a <br> beside a full-width float are moved below it, except the first"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "shorter-page"]
+  mobile: true
+  js: |
+    const floats = [];
+    for (const e of Array.from(document.querySelectorAll('body *')).slice(0, 8000)) {
+      if (getComputedStyle(e).cssFloat === 'none') continue;
+      const r = e.getBoundingClientRect(); if (r.height > 10 && r.width > 10) floats.push([e, r]);
+      if (floats.length >= 200) break; }
+    if (!floats.length) return false;
+    for (const br of Array.from(document.querySelectorAll('br')).slice(0, 3000)) {
+      let prev = br.previousSibling; while (prev && prev.nodeType === 3 && !prev.nodeValue.trim()) prev = prev.previousSibling;
+      if (!prev || prev.nodeName !== 'BR') continue;
+      const r = br.getBoundingClientRect(), p = br.parentElement, pr = p.getBoundingClientRect();
+      for (const [f, fr] of floats) {
+        if (f.contains(br) || fr.top > r.top + 1 || r.top >= fr.bottom - 1) continue;
+        if (fr.left <= pr.left + 1 && fr.right >= pr.right - 1) return 'br beside ' + f.tagName.toLowerCase() + ' ' + Math.round(fr.width) + ' px in ' + Math.round(pr.width);
+      }
+    }
+    return false;

@@ -187,7 +187,8 @@ const MAX = 4000, out = [], REPLACED = /^(IMG|SVG|VIDEO|IFRAME|INPUT|BUTTON|SELE
 // SOURCE, TRACK, PARAM (2026-11-24): never painted unless styled; Ladybird gives an empty inline <source> in a <picture>
 // a line-high box where Chromium and Firefox give 0 x 0 (musikisyd's magazine cover, layout:extra), with no visible effect.
 const SKIP = /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|LINK|META|HEAD|TITLE|BR|WBR|SOURCE|TRACK|PARAM)$/;
-const CAROUSEL = ['flickity-viewport', 'slick-list', 'swiper-wrapper', 'splide__track', 'owl-stage-outer', 'glide__track', 'carousel-inner', 'slideshow', 'n2-ss-slider-1', 'et_pb_slides', 'uk-slideshow-items', 'uk-slider-items', 'slideshow-container'];
+const CAROUSEL = ['flickity-viewport', 'slick-list', 'swiper-wrapper', 'splide__track', 'owl-stage-outer', 'glide__track', 'carousel-inner', 'slideshow', 'n2-ss-slider-1', 'et_pb_slides', 'uk-slideshow-items', 'uk-slider-items', 'slideshow-container',
+                  'wpmslider-viewport'];
 // jQuery Cycle marks the slides, not the viewport (2026-11-22: byggnyheter's header)
 const CAROUSEL_SLIDE = 'cycle-slide';
 const honeypot = b => { const r = b.getBoundingClientRect(); if (r.width > 1 || r.height > 1) return false;

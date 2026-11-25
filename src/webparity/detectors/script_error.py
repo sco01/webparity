@@ -17,7 +17,8 @@ Signatures:
   message is the most frequent one (``[TypeError] x is not a function``, digits as N, URLs as <url>).
 - ``script-error-iframe`` (info): at least two exceptions from cross-origin iframes.
 - ``missing-feature:js:<message>`` (info): exceptions that are missing features, not bugs: ``TODO(...)``, ``not
-  implemented``, and permissions.query() with a PermissionName Ladybird doesn't know (a TypeError per spec, 2026-11-17).
+  implemented``, XSLTProcessor (2026-11-25), and permissions.query() with a PermissionName Ladybird doesn't know (a
+  TypeError per spec, 2026-11-17).
 
 Exceptions about callbacks from a document that is "not fully active" are not counted (2026-11-17: Ladybird refuses to
 run callbacks from a removed iframe and logs it; Chromium and Firefox skip them silently).
@@ -33,7 +34,11 @@ from webparity.detectors import Detector
 from webparity.detectors._common import OK, events, finding, gate, info, m, reference
 
 FIRST_LOAD_STEPS = ("load", "probe", "idle", "interact")
-NOT_IMPLEMENTED = re.compile(r"TODO\(|not implemented|NotImplemented|for enumeration type 'PermissionName'")
+# XSLTProcessor (2026-11-25): XSLT is not planned in Ladybird (#707, closed) and Chromium is removing it; s9e's
+# TextFormatter (Flarum's forum.js) creates one at the top level, so one exception stops every extension after it.
+NOT_IMPLEMENTED = re.compile(
+    r"TODO\(|not implemented|NotImplemented|for enumeration type 'PermissionName'|'XSLTProcessor' is not defined"
+)
 
 
 def normalize(text: str) -> str:

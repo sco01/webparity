@@ -56,3 +56,14 @@
     const m = new WebAssembly.Memory({initial: 1, maximum: 1, shared: true});
     try { gl.vertexAttrib4fv(0, new Float32Array(m.buffer, 0, 4)); return false; }
     catch (e) { return 'vertexAttrib4fv: ' + e.message; }
+
+# 2026-11-25: XSLTProcessor is missing – XSLT is not planned in Ladybird (#707, closed as not planned) and Chromium is
+# removing it. s9e's TextFormatter, bundled in Flarum's forum.js before the extensions, creates one at the top level, so
+# the exception stops the script and none of the forum's extensions (tags, polls ...) load: a forum's front page lost
+# its tag labels and side navigation (455 px shorter in the mobile view). Ladybird's log has the exception.
+- id: xsltprocessor-missing
+  issue: "missing-feature:xslt"
+  text: "XSLTProcessor is missing (XSLT not planned, #707); a script that creates one stops (Flarum's extensions)"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "fewer-resources", "zero-size-text",
+           "missing-resources", "broken-images", "script-error:"]
+  log: "'XSLTProcessor' is not defined"

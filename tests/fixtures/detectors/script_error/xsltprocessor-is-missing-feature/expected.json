@@ -1,0 +1,9 @@
+{
+ "detector": "script_error",
+ "must": [
+  "missing-feature:js:[ReferenceError] 'XSLTProcessor' is not defined"
+ ],
+ "must_not": [
+  "script-error:"
+ ]
+}

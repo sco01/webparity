@@ -41,9 +41,12 @@ NATIVE_WIDTH = {"file"}
 # mobile load and 91 after a resize in every browser. Not compared, but an explanation for the ancestors (like ads).
 # UIkit's slideshow and slider (2026-11-23: asb-executive.se, an autoplaying slideshow on another slide in each one).
 # w3schools' slideshow (2026-11-23: byggbeskrivningar.se and fixatrixa.se, another .mySlides shown in each browser).
+# Strong Testimonials' slider (2026-11-25: kulturgryning.nu, the viewport as high as the quote shown - 725, 1062 and
+# 1845 px in Firefox, Chromium and Ladybird).
 CAROUSEL_VIEWPORT = re.compile(
     r"/(?:div|ul|section)\.(?:flickity-viewport|slick-list|swiper-wrapper|splide__track|owl-stage-outer|glide__track"
-    r"|carousel-inner|slideshow|n2-ss-slider-1|et_pb_slides|uk-slideshow-items|uk-slider-items|slideshow-container)"
+    r"|carousel-inner|slideshow|n2-ss-slider-1|et_pb_slides|uk-slideshow-items|uk-slider-items|slideshow-container"
+    r"|wpmslider-viewport)"
     r"(?::\d+)?$"
     r"|/rs-slides(?::\d+)?$"
 )
