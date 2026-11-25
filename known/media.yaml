@@ -151,3 +151,22 @@
       n.onload = () => { const r = n.getBoundingClientRect(); res(Math.round(r.width) === i.naturalHeight && Math.round(r.height) === i.naturalWidth ? i : null); };
       n.onerror = () => res(null); n.src = i.currentSrc || i.src; })))
       .then(a => { box.remove(); const t = a.find(Boolean); done(t ? 'exif-rotated ' + t.naturalWidth + '×' + t.naturalHeight + ' ' + (t.currentSrc || t.src).split('/').pop().slice(0, 40) : false); });
+
+# 2026-11-25: an SVG image encoded in UTF-16 (byte order mark FF FE or FE FF; CorelDRAW exports them) doesn't load as an
+# image in Ladybird: SVGDecodedImageData::decode hands the raw bytes to the XML parser, which reads them as UTF-8 – only
+# navigated XML documents get the BOM/encoding sniffing. On a site the menu's rocket graphics and the footer's social icons
+# are missing. Runs in the reference browser: an <img> whose source is an SVG that starts with a UTF-16 BOM.
+- id: svg-image-utf16
+  issue: "draft:svg-utf16"
+  text: "an SVG image encoded in UTF-16 doesn't load"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "broken-images", "less-content", "shorter-page", "overflow",
+           "mobile-overflow"]
+  async: true
+  js: |
+    const urls = [...new Set([...document.images].map(i => i.currentSrc || i.src)
+      .filter(u => /^https?:/.test(u) && /\.svg(\?|#|$)/i.test(u)))].slice(0, 25);
+    Promise.all(urls.map(u => fetch(u).then(r => r.arrayBuffer()).then(b => {
+      const a = new Uint8Array(b, 0, Math.min(2, b.byteLength));
+      return (a[0] === 0xFF && a[1] === 0xFE) || (a[0] === 0xFE && a[1] === 0xFF) ? u : null;
+    }).catch(() => null)))
+      .then(r => { const u = r.find(Boolean); done(u ? 'utf-16 svg ' + u.split('/').pop().slice(0, 50) : false); });
