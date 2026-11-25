@@ -78,6 +78,9 @@
 # the element is not relevant to the user (table_group_builder.rs only hooks up hidden), so contain-intrinsic-size is not
 # used off screen – on a site an empty section is 24 px against 2571. Runs in the reference browser: an element with
 # content-visibility: auto and contain-intrinsic-height/-size outside the viewport that is at least 100 px high.
+# 2026-11-25: also without contain-intrinsic-size – a Shopify theme's footer grid (.footer-content) is 72 px off screen in
+# Chromium and Firefox (only its padding) and 168 px in Ladybird, which lays out the contents. Also matches a non-empty
+# content-visibility: auto element off screen whose content box is empty in the reference.
 - id: content-visibility-auto-no-intrinsic-size
   issue: "known:cv-auto"
   text: "content-visibility: auto off screen does not get contain-intrinsic-size"
@@ -86,9 +89,14 @@
     for (const e of document.querySelectorAll('body *')) {
       const s = getComputedStyle(e);
       if (s.contentVisibility !== 'auto') continue;
-      if ((s.containIntrinsicHeight || 'none') === 'none' && (s.containIntrinsicBlockSize || 'none') === 'none') continue;
       const r = e.getBoundingClientRect();
-      if (r.height >= 100 && (r.top > innerHeight * 1.5 || r.bottom < -innerHeight * 0.5)) return 'cv-auto ' + e.tagName.toLowerCase() + '.' + (e.classList[0] || '') + ' ' + Math.round(r.height);
+      if (!(r.top > innerHeight * 1.5 || r.bottom < -innerHeight * 0.5)) continue;
+      const name = 'cv-auto ' + e.tagName.toLowerCase() + '.' + (e.classList[0] || '') + ' ' + Math.round(r.height);
+      const noIntrinsic = (s.containIntrinsicHeight || 'none') === 'none' && (s.containIntrinsicBlockSize || 'none') === 'none';
+      if (!noIntrinsic && r.height >= 100) return name;
+      const box = r.height - ['paddingTop', 'paddingBottom', 'borderTopWidth', 'borderBottomWidth'].reduce((a, k) => a + parseFloat(s[k]), 0);
+      const given = parseFloat(String(s.containIntrinsicHeight || '').split(' ').pop()) || 0;
+      if (e.children.length && e.textContent.trim() && Math.abs(box - given) < 2) return name + ' (contents skipped)';
     }
     return false;
 
