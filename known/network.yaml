@@ -101,6 +101,8 @@
     if (innerWidth < 1000) return false;
     // 2026-11-16: an ASP.NET site sends "Ladybird" in the UA to /Mobile/Index with a 302.
     if (/^\/mobile(\/|$)/i.test(location.pathname)) return 'mobile url ' + location.pathname.slice(0, 40);
+    // 2026-11-25: a news publisher's server renders the mobile template for Ladybird's UA: <body class="... mobile ...">.
+    if (/\bmobile\b/.test(document.body.className)) return 'body.mobile';
     const m = [...document.styleSheets].map(s => s.href || '').find(h => /main\.mobile-|\.mobile_[0-9a-f]{8}/.test(h));
     return m ? 'mobile css ' + m.slice(-60) : false;
 
