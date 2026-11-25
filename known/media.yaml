@@ -157,7 +157,7 @@
 # navigated XML documents get the BOM/encoding sniffing. On a site the menu's rocket graphics and the footer's social icons
 # are missing. Runs in the reference browser: an <img> whose source is an SVG that starts with a UTF-16 BOM.
 - id: svg-image-utf16
-  issue: "draft:svg-utf16"
+  issue: "#15987"
   text: "an SVG image encoded in UTF-16 doesn't load"
   prefix: ["layout:", "mobile-layout:", "image-differs", "broken-images", "less-content", "shorter-page", "overflow",
            "mobile-overflow"]
