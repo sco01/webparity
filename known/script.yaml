@@ -46,8 +46,11 @@
 # from TextDecoder (#14783), so the check runs the feature test in Ladybird and requires a <canvas> on the page.
 - id: webgl-rejects-shared-memory-views
   issue: "#14924"
+  fixed: "f7b15e1a41a"
   text: "WebGL rejects views on shared memory (uniform4fv and others); Flutter skwasm gets stuck"
-  regex: '^script-error:\[TypeError\] The array buffer object cannot be a SharedArrayBuffer$'
+  # 2026-11-25: also the screenshot difference of the stuck app (the error is in the log only once, not always a
+  # script-error finding); closed by f7b15e1a41a on 2026-11-25, after build b5ead4e178b
+  regex: '^(script-error:\[TypeError\] The array buffer object cannot be a SharedArrayBuffer|image-differs|less-content|blank-page)$'
   run_in: ladybird
   js: |
     if (!document.querySelector('canvas, flutter-view, flt-glass-pane')) return false;   // Flutter's canvas lives in a shadow root
