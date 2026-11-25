@@ -103,3 +103,16 @@
     const r = a.getBoundingClientRect(); if (!r.width || !r.height) return false;   // a 0-high widget on one site: no scrolling
     const y = r.top + scrollY;
     return y + r.height > innerHeight ? 'focus ' + a.tagName.toLowerCase() + (a.id ? '#' + a.id.slice(0, 30) : '') + ' y=' + Math.round(y) : false;
+
+# 2026-11-25: Ladybird has no CSS scroll anchoring (#15079, open enhancement). A site's script does the old
+# window.scroll(0, 1) trick; at y > 0 the theme hides the header's top row (40 px) as "sticky". Chromium and Firefox then
+# anchor back to 0 (the content moved up), the class goes away and the row is shown; Ladybird stays at 1 with the row
+# hidden. Runs in Ladybird: the page is left scrolled by a few pixels without anyone scrolling it.
+- id: no-scroll-anchoring-small-script-scroll
+  issue: "#15079"
+  text: "no scroll anchoring – a page that scrolls itself by a pixel stays there (the header collapses)"
+  prefix: ["image-differs", "layout:position:", "layout:height:", "layout:missing:", "shorter-page"]
+  run_in: ladybird
+  js: |
+    const y = scrollY;
+    return y > 0 && y <= 4 ? 'scrollY ' + y : false;
