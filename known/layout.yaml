@@ -1271,3 +1271,27 @@
       if (r.width >= 50 && r.height >= 20) return 'size-contained aspect-ratio ' + e.tagName.toLowerCase() + '.' + (e.classList[0] || '') + ' ' + Math.round(r.width) + '×' + Math.round(r.height);
     }
     return false;
+
+# 2026-11-25: the static position of an absolutely positioned box that follows a space after content that already
+# overflows the line: Chromium and Firefox put it at the start of the next line, Ladybird at the end of the overflowing
+# line (outside the container). On a site a visually hidden site title (clip: rect(1px…)) ends up right of the 390 px
+# viewport and the mobile page becomes 457 px wide. Runs in Ladybird: an absolutely positioned element preceded by a
+# whitespace text node and an inline sibling that ends past its parent's right edge, starting where that sibling ends.
+- id: abspos-static-position-after-overflowing-line
+  issue: "draft:abspos-statisk-overfull-rad"
+  text: "an absolutely positioned box after a space at the end of an overflowing line stays on that line (static position)"
+  prefix: ["layout:", "mobile-layout:", "overflow", "mobile-overflow"]
+  run_in: ladybird
+  js: |
+    for (const e of document.querySelectorAll('body *')) {
+      const s = getComputedStyle(e);
+      if (s.position !== 'absolute' && s.position !== 'fixed') continue;
+      const t = e.previousSibling, p = e.previousElementSibling, parent = e.parentElement;
+      if (!t || t.nodeType !== 3 || t.textContent.trim() || !p || !parent || t.previousSibling !== p) continue;
+      if (!getComputedStyle(p).display.startsWith('inline')) continue;
+      const pr = p.getBoundingClientRect(), cr = parent.getBoundingClientRect(), r = e.getBoundingClientRect();
+      const right = cr.right - parseFloat(getComputedStyle(parent).paddingRight);
+      if (pr.right > right + 1 && r.left >= pr.right - 1 && Math.abs(r.top - pr.top) < pr.height)
+        return 'abspos after overflowing line ' + (e.className || e.tagName).toString().slice(0, 40);
+    }
+    return false;
