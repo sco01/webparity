@@ -9,9 +9,10 @@ Signatures (error unless marked info):
 - ``different-final-site`` (info): the browsers ended on different sites; nothing else is compared.
 - ``not-loading:<reason>``: the page doesn't load in Ladybird but does in the reference. Reasons from the log:
   ``http2``, ``ssl``, ``connection``, ``dns``, ``timeout``, ``other``; ``crash``, ``xml-feed`` and ``server-error`` are
-  info (the crash has its own finding; Ladybird shows RSS/Atom as an empty page, rendering feeds is "not planned"; a
-  server's own 5xx page is the server's - the browsers load in parallel, and a reference that gets one only makes the
-  visit incomparable, so these were only ever counted against Ladybird: 2026-11-24, seven 500s, all at one host).
+  info (the crash has its own finding; Ladybird shows RSS/Atom and other plain XML, even sent as XHTML, as an empty
+  page, rendering feeds is "not planned"; a server's own 5xx page is the server's - the browsers load in parallel, and a
+  reference that gets one only makes the visit incomparable, so these were only ever counted against Ladybird:
+  2026-11-24, seven 500s, all at one host).
 - ``cookie-banner-locks-page`` (info): a cookie banner locks scrolling in Ladybird and isn't shown in the reference
   (some consent tools show no dialog to headless Chromium); the page height is then not compared.
 - ``less-content``, ``shorter-page``, ``error-reports`` (Sentry and the like), ``error-text:<text>``, ``overflow``
@@ -77,6 +78,9 @@ def load_reason(bundle, lp: dict) -> str:
     )
     content_type = (lp.get("content_type") or "").split(";")[0].strip().lower()
     xml = bool(re.search(r"[+/]xml$", content_type)) and not re.search(r"xhtml|svg", content_type)
+    # 2026-11-25: plain XML sent as application/xhtml+xml (an API answer): Ladybird and Firefox show the bare elements,
+    # Chromium its XML viewer
+    xml = xml or bool(lp.get("xml_root"))
     if log["crash"]["crash"]:
         reason = "crash"
     elif xml:

@@ -129,7 +129,9 @@ for (const x of R) counts[x.name] = (counts[x.name] || 0) + 1;
 // is complete by the spec before it is requested - Ladybird and Firefox say so, Chromium doesn't - not broken
 const unrequested = i => i.loading === 'lazy' && !i.hasAttribute('src') && !i.hasAttribute('srcset');
 const repeated = Object.entries(counts).filter(([u, n]) => n >= 20).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([u, n]) => [u.slice(0, 2000), n]);
-return {title: document.title.slice(0, 80), url: location.href.slice(0, 300), content_type: document.contentType, elements: document.querySelectorAll('*').length,
+// 2026-11-25: a plain XML document (an API answer sent as application/xhtml+xml): the root is neither HTML nor SVG
+const xmlRoot = !!document.documentElement && !['http://www.w3.org/1999/xhtml', 'http://www.w3.org/2000/svg'].includes(document.documentElement.namespaceURI);
+return {title: document.title.slice(0, 80), url: location.href.slice(0, 300), content_type: document.contentType, xml_root: xmlRoot, elements: document.querySelectorAll('*').length,
         text: Math.max(0, txt.length - optText), canvas: cs.length, canvas_visible: canvases.length,
         resources: per, resources_total: R.length, resource_list: R.slice(0, 500).map(x => x.name.slice(0, 300)), resource_types: R.slice(0, 500).map(x => x.initiatorType || ''),
         repeated,
