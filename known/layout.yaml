@@ -1257,7 +1257,7 @@
 # volvotrucks.com and volvogroup.com: the press release cards' .cmp-teaser__image (aspect-ratio: 16 / 9; container-type:
 # size), so the cards have no images. Replaced elements (Aftonbladet's images with contain: size) are right. Runs in the reference browser: a visible element like that at least 50 px wide.
 - id: aspect-ratio-size-containment-zero
-  issue: "draft:aspect-storleksinneslutning"
+  issue: "#15970"
   text: "a block with aspect-ratio and size containment (contain: size / container-type: size) is 0×0"
   prefix: ["layout:", "mobile-layout:", "image-differs", "shorter-page", "less-content", "broken-images"]
   js: |

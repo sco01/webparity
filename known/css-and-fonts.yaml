@@ -288,7 +288,7 @@
 # Runs in the reference browser: a rule for ::before/::after with content: var(...) and an animation, whose
 # pseudo-element computes to content none on a matching element.
 - id: animation-on-pseudo-with-var-content-none
-  issue: "draft:pseudo-anim-var-content"
+  issue: "#15945"
   text: "a ::before/::after with content none through var() still runs its animations (Avada's autoplaying tabs advance)"
   prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page"]
   js: |
