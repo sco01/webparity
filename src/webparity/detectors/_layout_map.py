@@ -142,8 +142,8 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
         return e["w"] >= 20 and e["h"] >= 10
 
     unstable = 0
+    C2 = index(ref_reload_rows) if ref_reload_rows else {}
     if ref_reload_rows:
-        C2 = index(ref_reload_rows)
 
         # Only the size: a banner that appears pushes the whole page down without any element changing size
         def moves(a, b):
@@ -233,6 +233,16 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
                 if anc not in paired:
                     continue
                 pl, pc = L[anc], C[anc]
+                # A position the reference itself doesn't keep between its two loads (2026-11-25: a 40 s CSS animation
+                # moving a gradient blob on vertica.dk, a mesh of icons placed at random on surecookie.com, a masonry
+                # gallery in random order on kkm.se) - not compared
+                if k in C2 and anc in C2:
+                    r2, a2 = C2[k], C2[anc]
+                    if (
+                        abs((r2["x"] - a2["x"]) - (c["x"] - pc["x"])) >= 40
+                        or abs((r2["y"] - a2["y"]) - (c["y"] - pc["y"])) >= 40
+                    ):
+                        continue
                 if (
                     abs((lb["x"] - pl["x"]) - (c["x"] - pc["x"])) >= 40
                     or abs((lb["y"] - pl["y"]) - (c["y"] - pc["y"])) >= 40
