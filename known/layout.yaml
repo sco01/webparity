@@ -1227,7 +1227,8 @@
 # 2026-11-25: #15435 (filed by us). Lines holding only a <br> beside a float that takes the container's whole width go
 # beside it in Chromium and Firefox; Ladybird moves the second and later ones below the float (an ASP.NET login control;
 # a contest site's 975 px float table in a 380 px mobile column, its news column 32 px lower). Runs in the reference
-# browser: a <br> right after another <br> whose line sits beside a float covering the whole width of the br's parent.
+# browser: a <br> right after another <br> whose line sits beside a float whose margin box covers the whole width of the
+# br's parent.
 - id: br-lines-beside-full-width-float
   issue: "#15435"
   text: "lines holding only a <br> beside a full-width float are moved below it, except the first"
@@ -1237,7 +1238,11 @@
     const floats = [];
     for (const e of Array.from(document.querySelectorAll('body *')).slice(0, 8000)) {
       if (getComputedStyle(e).cssFloat === 'none') continue;
-      const r = e.getBoundingClientRect(); if (r.height > 10 && r.width > 10) floats.push([e, r]);
+      // the margin box (2026-11-26: hovfjallet's full-width buttons are 358 px wide with 5 px margins in a 358 px column)
+      const b = e.getBoundingClientRect(), c = getComputedStyle(e);
+      const r = {left: b.left - parseFloat(c.marginLeft), right: b.right + parseFloat(c.marginRight),
+                 top: b.top - parseFloat(c.marginTop), bottom: b.bottom + parseFloat(c.marginBottom), width: b.width};
+      if (b.height > 10 && b.width > 10) floats.push([e, r]);
       if (floats.length >= 200) break; }
     if (!floats.length) return false;
     for (const br of Array.from(document.querySelectorAll('br')).slice(0, 3000)) {
