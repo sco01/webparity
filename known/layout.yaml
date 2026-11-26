@@ -1279,6 +1279,24 @@
     }
     return false;
 
+# 2026-11-26: a block whose only content is <wbr> elements (<p><wbr></p>) is 0 px high in Ladybird; Chromium and
+# Firefox give it one line, as every engine does for a zero-width space. odlingen.org: 37 paragraphs of
+# <p><wbr><wbr><wbr><wbr></p> left by the editor as blank lines, the page 900 px high instead of 2235. Runs in the
+# reference browser: a visible element with at least one <wbr> child and no other children than <wbr> elements and
+# white space.
+- id: wbr-only-line-zero-height
+  issue: "draft:wbr-tom-rad"
+  text: "a block holding only <wbr> elements gets no line (0 px high)"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "shorter-page"]
+  js: |
+    const seen = new Set(); let n = 0;
+    for (const w of Array.from(document.querySelectorAll('wbr')).slice(0, 4000)) {
+      const p = w.parentElement; if (!p || seen.has(p)) continue; seen.add(p);
+      const only = Array.from(p.childNodes).every(c => c.nodeName === 'WBR' || (c.nodeType === 3 && !c.data.trim()));
+      if (only && p.getBoundingClientRect().height >= 5) n++;
+    }
+    return n ? n + ' element(s) holding only <wbr>' : false;
+
 # 2026-11-25: a block with auto width, aspect-ratio and size containment in both axes (contain: size or
 # container-type: size) is 0×0 in Ladybird, as if it were a replaced element whose natural width is
 # contain-intrinsic-width (0 without one). Chromium and Firefox fill the width and take the height from the ratio.
