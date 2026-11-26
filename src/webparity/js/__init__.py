@@ -26,7 +26,10 @@ const R = performance.getEntriesByType('resource');
 const per = {};
 for (const x of R) per[x.initiatorType || 'other'] = (per[x.initiatorType || 'other'] || 0) + 1;
 // New Relic: only /jserrors/ are error reports - bam.nr-data.net/rum, /connect and /events are ordinary metrics (2026-11-08)
-const ERROR_REPORT = /sentry\.io|ingest\.sentry|\/api\/\d+\/envelope|bugsnag|browser-intake-[a-z0-9-]*datadoghq|rollbar\.com\/api|\/jserrors\//;
+// Bugsnag: only notify.bugsnag.com, sessions.bugsnag.com counts page views; Datadog: only /api/v2/logs, /api/v2/rum is
+// batched metrics sent more often on a slower page (2026-11-26). Sentry envelopes can also hold sessions and
+// transactions, which the URL does not tell apart.
+const ERROR_REPORT = /sentry\.io|ingest\.sentry|\/api\/\d+\/envelope|notify\.bugsnag|browser-intake-[a-z0-9-]*datadoghq[^/]*\/api\/v2\/logs|rollbar\.com\/api|\/jserrors\//;
 // Error texts a page shows to its users (English and Swedish variants)
 const ERROR_TEXT = /something went wrong|an error (has )?occurred|ett fel (har )?uppstod|ett fel har uppstått|något gick fel|oops[!,.]|unsupported browser|browser (is )?not supported|update your browser|upgrade your browser|uppdatera din webbläsare|din webbläsare stöds inte|please enable javascript|aktivera javascript|application error: a client-side exception|minified react error/gi;
 // Cookie banners (English and Swedish words)
