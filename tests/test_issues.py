@@ -440,6 +440,7 @@ def test_same_and_assess():
     assert same("width: 100\nheight: 50", "width: 101\nheight: 50")
     assert same("w 1000", "w 1019") and not same("w 1000", "w 1030")
     assert not same("a 1", "b 1") and not same("", "")
+    assert same("x: TypeError: …", "x: TypeError: 0 is read-only") and not same("x: TypeError: a", "x: RangeError: a")
     base = {"expected": "ok", "actual": "bad", "start": "running...", "state": "filed", "closed": None}
     assert assess({**base, "ladybird": "ok", "chromium": "ok"}, None) == "fixed-silently"
     # Chromium giving the reported bug is not a reference

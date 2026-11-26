@@ -366,7 +366,10 @@ class Browser:
         client = self.session.client
         try:
             client.command(
-                "browsingContext.navigate", {"context": self.context, "url": url, "wait": "complete"}, timeout=60
+                "browsingContext.navigate",
+                # A test case may show a bug where load never fires: wait for the document, then at most 20 s below
+                {"context": self.context, "url": url, "wait": "interactive" if test_case else "complete"},
+                timeout=60,
             )
         except BidiError as exc:
             # A page that navigates by itself (a redirect, location.reload in a test case) cancels the navigation

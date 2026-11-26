@@ -160,7 +160,6 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
     unstable = 0
     C2 = index(ref_reload_rows) if ref_reload_rows else {}
     if ref_reload_rows:
-
         # Only the size: a banner that appears pushes the whole page down without any element changing size
         def moves(a, b):
             return abs(a["w"] - b["w"]) >= 8 or abs(a["h"] - b["h"]) >= 8

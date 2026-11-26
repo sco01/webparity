@@ -50,6 +50,8 @@ INTERACTIVE = re.compile(r"\b(mouse|wheel|click|hover|drag|press|type into|tab k
 SERVER_SCRIPT = re.compile(r"\s*(#.*\n\s*)*(#!|import |from \w+ import )")
 OUT_START = re.compile(r'id="?out"?[^>]*>([^<]*)<')
 NUMBER = re.compile(r"-?\d+(?:\.\d+)?")
+# Exception messages differ between engines ("TypeError: 0 is read-only"); a draft writes "TypeError: …"
+ERROR_MESSAGE = re.compile(r"\b([A-Z]\w*Error): .*$", re.M)
 
 ORDER = [
     "fixed",
@@ -84,9 +86,11 @@ def norm(value: str | None) -> str:
 
 
 def same(a: str, b: str) -> bool:
-    """The same text, or the same text around the numbers with every number within 2 units or 2 %."""
+    """The same text, or the same text around the numbers with every number within 2 units or 2 %. The message after
+    an exception name ("TypeError: …") is not compared."""
     if not a or not b:
         return False
+    a, b = ERROR_MESSAGE.sub(r"\1", a), ERROR_MESSAGE.sub(r"\1", b)
     if a == b:
         return True
     if NUMBER.sub("#", a) != NUMBER.sub("#", b):
