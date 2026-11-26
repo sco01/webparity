@@ -200,7 +200,7 @@
 # Teamtailor's video blocks use #t=0.1 so a paused video shows a frame. Runs in Ladybird: a video with its metadata loaded
 # whose current source has a #t= start above 0 and that is still at time 0.
 - id: media-fragment-start-ignored
-  issue: "draft:video-fragment-start"
+  issue: "#16154"
   text: "a temporal media fragment (#t=) in the video URL is ignored, playback starts at 0"
   prefix: ["video", "image-differs"]
   run_in: ladybird
