@@ -7,7 +7,8 @@ Signatures (error unless marked info):
 - ``memory-high`` (info): it grew 100 MB twice and then levelled off (1.6-2 GB, released at about:blank: not a leak).
 - ``unstable`` (info): the element count differed by more than 40 % between two loads in Ladybird.
 - ``cpu-idle``: Ladybird's main page process uses at least 50 % CPU while the page is idle, the reference's under 15 %.
-  Both are measured from /proc (the main process found with a busy loop, see ``measure.cpu``).
+  Both are measured from /proc (the main process found with a busy loop, see ``measure.cpu``). Info when the reference
+  reaches under 30 frames a second: the page keeps drawing, and Chromium rasterizes in its GPU process, not measured.
 - ``slow-response``: a trivial script takes at least 1,000 ms in Ladybird and under 300 ms in the reference.
 - ``slow-load``: the page became stable after at least three times the reference's time and 10 s more.
 """
@@ -48,13 +49,20 @@ class Performance(Detector):
             )
         li, ci = m(bundle, "ladybird", "idle"), m(bundle, ref, "idle")
         if num(li, "cpu_idle") >= 50 and ci.get("cpu_idle") is not None and ci["cpu_idle"] < 15:
-            out.append(
-                finding(
-                    "cpu-idle",
-                    f"Ladybird uses {li['cpu_idle']} % CPU while the page is idle (reference {ci['cpu_idle']} %)",
-                    cpu=[li["cpu_idle"], ci["cpu_idle"]],
+            text = f"Ladybird uses {li['cpu_idle']} % CPU while the page is idle (reference {ci['cpu_idle']} %)"
+            fps = ci.get("frame_rate")
+            if isinstance(fps, (int, float)) and fps < 30:
+                # The page keeps drawing and the reference rasterizes it outside the measured process (2026-11-26)
+                out.append(
+                    info(
+                        "cpu-idle",
+                        text + f"; the page keeps drawing ({fps} frames/s in the reference)",
+                        cpu=[li["cpu_idle"], ci["cpu_idle"]],
+                        frame_rate=fps,
+                    )
                 )
-            )
+            else:
+                out.append(finding("cpu-idle", text, cpu=[li["cpu_idle"], ci["cpu_idle"]]))
         if num(li, "response_ms") >= 1000 and num(ci, "response_ms") < 300:
             out.append(
                 finding(

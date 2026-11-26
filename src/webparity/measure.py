@@ -344,6 +344,8 @@ def probe(h, ctx) -> dict:
 
 def idle(h, ctx) -> dict:
     out: dict = cpu(h, ctx.browser)
+    if ctx.browser != "ladybird":  # after the CPU window, so that the counting loop is not measured
+        _try(out, "frame_rate", lambda: h.js(js.FRAME_RATE, timeout=10))
     out["memory_mb"] = rss_mb(ctx.browser)
     shot = _try(out, "", h.screenshot, "screenshot_error")
     if shot:

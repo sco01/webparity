@@ -382,3 +382,11 @@ OUTER_HTML = (
 )
 # A short busy loop in the page: the renderer process that gets the CPU is the page's own (see measure.cpu)
 BUSY = "const t = performance.now(); while (performance.now() - t < 300) {} return 1"
+# Frames per second the page reaches over a second (2026-11-26): on pages that keep drawing (GSAP/Lenis loops, Rive,
+# canvas) the reference Chromium manages 2-10 frames a second under Xvfb because it rasterizes in its GPU process, whose
+# CPU is not counted, while Ladybird and Firefox draw 14-60 in the page's process
+FRAME_RATE = (
+    "return await new Promise(r => { let n = 0; const t0 = performance.now(); const tick = () => { n++;"
+    " if (performance.now() - t0 < 1000) requestAnimationFrame(tick); else r(Math.round(n * 1000 / (performance.now() - t0))); };"
+    " requestAnimationFrame(tick); setTimeout(() => r(Math.round(n * 1000 / (performance.now() - t0))), 3000); })"
+)
