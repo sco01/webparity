@@ -106,10 +106,10 @@
 # 2026-11-26: Angular CDK's Platform takes Ladybird for Safari: BLINK needs window.chrome or Intl.v8BreakIterator, which
 # Ladybird lacks, so WEBKIT and SAFARI follow from "AppleWebKit … Safari" in the User-Agent. Pages take Safari paths
 # (the Fuse template adds body.safari: height -webkit-fill-available instead of 100vh, a login card not centred).
-# window.chrome is listed in #12720 (comment draft 12720-kommentar-angular-cdk). Runs in Ladybird: an Angular page
+# The default User-Agent says Chrome but window.chrome is missing (draft angular-cdk-safari). Runs in Ladybird: an Angular page
 # ([ng-version]) whose <body> has the class safari.
 - id: angular-cdk-detects-safari
-  issue: "#12720"
+  issue: "draft:angular-cdk-safari"
   text: "Angular CDK takes Ladybird for Safari (no window.chrome), so the page applies its Safari code paths"
   prefix: ["layout:", "mobile-layout:", "image-differs", "shorter-page", "less-content", "overflow", "mobile-overflow"]
   run_in: ladybird
