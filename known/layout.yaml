@@ -1297,6 +1297,32 @@
     }
     return n ? n + ' element(s) holding only <wbr>' : false;
 
+# 2026-11-26: width: fit-content on an absolutely positioned box is clamped to the containing block's width in
+# Ladybird, not to the space its insets leave (width: auto is right). destinationsigtuna.se at mobile width: the hero
+# heading's box (left: 50%; width: fit-content) is 276 px wide in Ladybird, 203 in Chromium and Firefox, where the
+# heading wraps. Runs in the reference browser: an absolutely positioned element that a style rule gives width:
+# fit-content whose text wraps (so its max-content width is more than the space available).
+- id: abspos-fit-content-ignores-insets
+  issue: "draft:abspos-fit-content"
+  text: "width: fit-content on an absolutely positioned box ignores the space its insets leave"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "overflow", "mobile-overflow"]
+  js: |
+    const sels = [];
+    const walk = l => { for (const r of l) { if (r.cssRules && !r.selectorText) walk(r.cssRules);
+      else if (r.selectorText && r.style && r.style.width === 'fit-content') sels.push(r.selectorText); } };
+    for (const s of document.styleSheets) { try { walk(s.cssRules); } catch (e) {} if (sels.length > 200) break; }
+    for (const e of document.querySelectorAll('[style*=fit-content]')) if (e.style.width === 'fit-content') sels.push(e);
+    const lines = e => { const r = document.createRange(); r.selectNodeContents(e);
+      return new Set(Array.from(r.getClientRects()).filter(q => q.width > 0).map(q => Math.round(q.top))).size; };
+    const check = e => { const c = getComputedStyle(e);
+      if (!/absolute|fixed/.test(c.position)) return false;
+      const b = e.getBoundingClientRect(); return b.width > 20 && b.height > 0 && lines(e) > 1; };
+    for (const s of sels) {
+      const els = typeof s === 'string' ? (() => { try { return Array.from(document.querySelectorAll(s)).slice(0, 50); } catch (x) { return []; } })() : [s];
+      for (const e of els) if (check(e)) return 'absolutely positioned ' + e.localName + ' with width: fit-content wraps';
+    }
+    return false;
+
 # 2026-11-25: a block with auto width, aspect-ratio and size containment in both axes (contain: size or
 # container-type: size) is 0×0 in Ladybird, as if it were a replaced element whose natural width is
 # contain-intrinsic-width (0 without one). Chromium and Firefox fill the width and take the height from the ratio.
