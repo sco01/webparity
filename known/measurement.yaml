@@ -225,13 +225,92 @@
 # 2026-11-26: a measurement difference in scrollbar model. The root has scrollbar-gutter: stable; Chromium (10 px with
 # scrollbar-width: thin) and Firefox (6 px) reserve a gutter at the viewport's edge even when nothing scrolls sideways,
 # Ladybird's scrollbars overlay the content and reserve none (the spec: no gutter for overlay scrollbars). The page is
-# 10 px wider in Ladybird, so a heading near its width limit wraps differently. Runs in the reference browser: a stable
+# 10 px wider in Ladybird, so a heading near its width limit wraps differently (jetbrains.com in the mobile step: 15 px).
+# Runs in the reference browser: a stable
 # gutter on the root or body and a root narrower than the viewport.
 - id: root-scrollbar-gutter-stable
   issue: "measurement-scrollbar"
   text: "scrollbar-gutter: stable on the root reserves a gutter in the reference browser; Ladybird's overlay scrollbars reserve none"
-  prefix: ["layout:", "image-differs", "shorter-page", "less-content", "overflow"]
+  prefix: ["layout:", "mobile-layout:", "image-differs", "shorter-page", "less-content", "overflow", "mobile-overflow"]
+  mobile: true
   js: |
     const g = e => /stable/.test(getComputedStyle(e).scrollbarGutter);
     const w = document.documentElement.offsetWidth;
     return (g(document.documentElement) || g(document.body)) && w < innerWidth - 2 ? 'root ' + w + ' of ' + innerWidth + ' px' : false;
+
+# 2026-11-26: a measurement artefact. An image whose srcset lists one file under several width descriptors (an ASP.NET
+# CMS: the same SVG as 1200w, 992w, 768w …, sizes 100vw). The descriptor sets the density and so the natural size; in
+# the mobile step (the viewport narrowed without a reload) Chromium keeps the 1200w candidate it chose at 1440 px
+# (density 3.1: a 341 px logo becomes 111 px), Ladybird and Firefox choose again for 390 px (277 px). Runs in the
+# reference browser: a visible image whose srcset has one URL under two or more w descriptors.
+- id: srcset-same-file-several-widths
+  issue: "measurement-srcset"
+  text: "srcset lists one file under several w descriptors; Chromium keeps the desktop step's density in the mobile step"
+  prefix: ["mobile-layout:"]
+  js: |
+    for (const i of document.querySelectorAll('img[srcset]')) {
+      const r = i.getBoundingClientRect(); if (r.width < 10 || r.height < 10) continue;
+      const seen = {};
+      for (const part of i.getAttribute('srcset').split(/,\s+/)) {
+        const m = part.trim().match(/^(\S+)\s+(\d+)w$/); if (!m) continue;
+        seen[m[1]] = (seen[m[1]] || 0) + 1;
+        if (seen[m[1]] > 1) return 'one file under several w descriptors: ' + m[1].split('/').pop().slice(0, 50);
+      }
+    }
+    return false;
+
+# 2026-11-26: a measurement artefact of the mobile step (the viewport narrowed without a reload). Isotope/Masonry lays
+# its items out again on resize only when the container's width changed. A sidebar gallery 33.33 % of 1170 px is
+# exactly 390 px in Chromium and Firefox at 1440 px and at 390 px, so they keep the desktop step's three columns (the
+# items, now 360 px wide, overlap); Ladybird's container is 389.984375 px at 1440 (1/64 px), so Isotope lays it out
+# again as one column (5230 px against 564). Runs in the reference browser: absolutely positioned items in a masonry
+# or isotope container that overlap each other by more than half.
+- id: masonry-not-relaid-after-resize
+  issue: "measurement-resize"
+  text: "an Isotope/Masonry gallery keeps the desktop step's columns in the reference after the viewport narrows"
+  prefix: ["mobile-layout:"]
+  mobile: true
+  js: |
+    for (const g of document.querySelectorAll('[class*=masonry], [class*=isotope]')) {
+      const items = [...g.children].filter(k => getComputedStyle(k).position === 'absolute').slice(0, 30)
+        .map(k => k.getBoundingClientRect()).filter(r => r.width > 20 && r.height > 20);
+      for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
+        const a = items[i], b = items[j];
+        const w = Math.min(a.right, b.right) - Math.max(a.left, b.left), h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+        if (w > 0 && h > 0 && w * h > 0.5 * Math.min(a.width * a.height, b.width * b.height))
+          return 'overlapping items in ' + String(g.className).split(' ')[0].slice(0, 40);
+      }
+    }
+    return false;
+
+# 2026-11-26: a measurement difference. Chromium under WebDriver has geolocation granted, Ladybird and Firefox ask
+# (permission state "prompt"), so a booking page's "find near me" button says "geolocation is disabled in your browser"
+# in Ladybird and Firefox and is taller. Runs in the reference browser: geolocation granted and a visible element whose
+# class or id mentions geolocation.
+- id: reference-geolocation-granted
+  issue: "measurement-permissions"
+  text: "the reference browser has geolocation granted; Ladybird (like Firefox) would ask"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "more-content"]
+  async: true
+  js: |
+    setTimeout(() => done(false), 5000);
+    navigator.permissions.query({name: 'geolocation'}).then(p => {
+      if (p.state !== 'granted') return done(false);
+      const e = [...document.querySelectorAll('[class*=geoloc], [id*=geoloc], [class*=Geoloc], [id*=Geoloc]')]
+        .find(x => { const r = x.getBoundingClientRect(); return r.width > 0 && r.height > 0; });
+      done(e ? 'geolocation granted; ' + (e.id || String(e.className)).slice(0, 40) : false);
+    }).catch(() => done(false));
+
+# 2026-11-26: a race in the page, not a Ladybird bug. CookieYes replaces YouTube iframes with a "accept cookies"
+# placeholder (a 1080×608 div) only when they are inserted after its script runs, so how many are replaced depends on
+# load timing: on a Divi site Ladybird had 4 placeholders, Firefox 2 and an iframe, Chromium none (the video box 795 px
+# high against 187). Runs in Ladybird: a visible CookieYes video placeholder.
+- id: cookieyes-video-placeholder
+  issue: "not-a-bug:cookieyes-placeholder-race"
+  text: "CookieYes replaced an embedded video with its consent placeholder (depends on load timing; Firefox too)"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "more-content", "shorter-page"]
+  run_in: ladybird
+  js: |
+    const e = [...document.querySelectorAll('[data-cky-tag=video-placeholder]')]
+      .find(x => { const r = x.getBoundingClientRect(); return r.width > 50 && r.height > 50; });
+    return e ? 'CookieYes video placeholder ' + Math.round(e.getBoundingClientRect().height) + ' px' : false;

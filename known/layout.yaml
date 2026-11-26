@@ -1256,6 +1256,29 @@
     }
     return false;
 
+# 2026-11-26: the same area as #15435 (comment draft 15435-kommentar-nollbredd): a line whose only content is a zero-width
+# space is moved below a float whose margin box is wider than the line; Chromium and Firefox keep it beside the float
+# (a WordPress post's paragraph: a full-width left-floated image with margin-right 16 px and a U+200B from TinyMCE –
+# 454 px high in Ladybird, 24 in Chromium; every following teaser 430 px lower). Runs in the reference browser: a
+# float whose margin box is wider than its parent's content box, and a text node in that parent with only zero-width
+# characters.
+- id: zero-width-line-beside-overwide-float
+  issue: "#15435"
+  text: "a line holding only a zero-width space beside a float wider than the line is moved below it"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "shorter-page"]
+  js: |
+    for (const e of Array.from(document.querySelectorAll('body *')).slice(0, 8000)) {
+      const c = getComputedStyle(e); if (c.cssFloat === 'none') continue;
+      const p = e.parentElement; if (!p) continue;
+      const pc = getComputedStyle(p), b = e.getBoundingClientRect();
+      const margin = b.width + parseFloat(c.marginLeft) + parseFloat(c.marginRight);
+      const room = p.clientWidth - parseFloat(pc.paddingLeft) - parseFloat(pc.paddingRight);
+      if (b.height < 10 || margin <= room + 0.5) continue;
+      for (const n of p.childNodes) if (n.nodeType === 3 && n.data.length && /^[\u200B\u200C\u200D\uFEFF\s]*$/.test(n.data) && /[\u200B\u200C\u200D\uFEFF]/.test(n.data))
+        return 'zero-width text beside ' + e.tagName.toLowerCase() + ' ' + Math.round(margin) + ' px in ' + Math.round(room);
+    }
+    return false;
+
 # 2026-11-25: a block with auto width, aspect-ratio and size containment in both axes (contain: size or
 # container-type: size) is 0×0 in Ladybird, as if it were a replaced element whose natural width is
 # contain-intrinsic-width (0 without one). Chromium and Firefox fill the width and take the height from the ratio.
