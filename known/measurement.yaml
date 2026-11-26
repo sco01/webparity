@@ -238,6 +238,17 @@
     const w = document.documentElement.offsetWidth;
     return (g(document.documentElement) || g(document.body)) && w < innerWidth - 2 ? 'root ' + w + ' of ' + innerWidth + ' px' : false;
 
+# 2026-11-26: the same at desktop width (morrislaw.se: html { scrollbar-gutter: stable }, the reference's root 1425 px of
+# 1440, a heading that wraps onto one more line in Ladybird). The entry above runs in the mobile step only.
+- id: root-scrollbar-gutter-stable-desktop
+  issue: "measurement-scrollbar"
+  text: "scrollbar-gutter: stable on the root reserves a gutter in the reference browser; Ladybird's overlay scrollbars reserve none"
+  prefix: ["layout:", "image-differs", "shorter-page", "less-content", "overflow"]
+  js: |
+    const g = e => /stable/.test(getComputedStyle(e).scrollbarGutter);
+    const w = document.documentElement.offsetWidth;
+    return (g(document.documentElement) || g(document.body)) && w < innerWidth - 2 ? 'root ' + w + ' of ' + innerWidth + ' px' : false;
+
 # 2026-11-26: a measurement artefact. An image whose srcset lists one file under several width descriptors (an ASP.NET
 # CMS: the same SVG as 1200w, 992w, 768w …, sizes 100vw). The descriptor sets the density and so the natural size; in
 # the mobile step (the viewport narrowed without a reload) Chromium keeps the 1200w candidate it chose at 1440 px

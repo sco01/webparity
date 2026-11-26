@@ -1151,20 +1151,27 @@
 
 # 2026-11-24 (draft grid-i-flex-stretch, from image-differs): a grid that is a flexed item of a column flexbox with only
 # a min-height keeps its auto rows at content size in Ladybird (Chromium and Firefox stretch them to the flexed height),
-# so align-items: center can't centre (arbetsnav.se's Tailwind hero at the top). Runs in Ladybird: such a grid whose
-# rows are clearly shorter than its content box.
+# so align-items: center can't centre (arbetsnav.se's Tailwind hero at the top). 2026-11-26: the same with fr rows
+# (minpension.se: 5fr auto 6fr resolved as for an indefinite height, the first row 54 px instead of 293), and with the
+# min-height further up a chain of flexed column flexboxes (body { min-height: 100% } > app-root { flex-grow: 1 } >
+# main.grid { flex-grow: 1 }). Runs in Ladybird: such a grid whose rows are clearly shorter than its content box.
 - id: grid-flexed-in-min-height-column
   issue: "#15798"
   text: "a grid flexed inside a min-height column flexbox doesn't stretch its rows"
   prefix: ["layout:", "mobile-layout:", "image-differs"]
   run_in: ladybird
   js: |
+    const column = e => { const c = e && getComputedStyle(e); return c && /flex/.test(c.display) && /column/.test(c.flexDirection); };
+    const minHeightAbove = g => {
+      for (let x = g; x.parentElement && column(x.parentElement) && parseFloat(getComputedStyle(x).flexGrow) > 0; x = x.parentElement) {
+        const m = getComputedStyle(x.parentElement).minHeight; if (m !== '0px' && m !== 'auto') return true;
+      }
+      return false;
+    };
     for (const g of document.querySelectorAll('body *')) {
       const s = getComputedStyle(g);
       if (s.display !== 'grid' || !g.parentElement) continue;
-      const p = getComputedStyle(g.parentElement);
-      if (!/flex/.test(p.display) || !/column/.test(p.flexDirection) || p.minHeight === '0px' || p.minHeight === 'auto') continue;
-      if (parseFloat(s.flexGrow) === 0 || s.alignContent !== 'normal') continue;
+      if (s.alignContent !== 'normal' || !minHeightAbove(g)) continue;
       const rows = s.gridTemplateRows.split(' ').map(parseFloat);
       if (rows.some(isNaN)) continue;
       const used = rows.reduce((a, b) => a + b, 0) + (rows.length - 1) * (parseFloat(s.rowGap) || 0);
@@ -1276,6 +1283,23 @@
       if (b.height < 10 || margin <= room + 0.5) continue;
       for (const n of p.childNodes) if (n.nodeType === 3 && n.data.length && /^[\u200B\u200C\u200D\uFEFF\s]*$/.test(n.data) && /[\u200B\u200C\u200D\uFEFF]/.test(n.data))
         return 'zero-width text beside ' + e.tagName.toLowerCase() + ' ' + Math.round(margin) + ' px in ' + Math.round(room);
+    }
+    return false;
+
+# 2026-11-26: interop disagreement, not a Ladybird bug. In quirks mode the body fills the window; with body { display:
+# grid; grid-template-rows: auto 1fr auto } Chromium stretches the 1fr row to the window (860 px of 900), Firefox doesn't
+# apply the quirk to a grid body (body 60 px), and Ladybird makes the body 900 px but keeps the rows at content size, so
+# it looks like Firefox (golfentertainment.se: the footer right after the content). Runs in the reference browser: a
+# quirks-mode document whose body is a grid with fr rows from a style sheet.
+- id: quirks-body-grid-fr-rows
+  issue: "not-a-bug:quirks-body-grid"
+  text: "in quirks mode a grid body's fr rows: Chromium stretches them to the window, Firefox doesn't apply the quirk"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "shorter-page"]
+  js: |
+    if (document.compatMode !== 'BackCompat' || !document.body || getComputedStyle(document.body).display !== 'grid') return false;
+    for (const sh of document.styleSheets) {
+      let text = ''; try { text = Array.from(sh.cssRules).map(r => r.cssText).join(' '); } catch (e) { continue; }
+      if (/\bbody\b[^{]*\{[^}]*grid-template-rows:[^;}]*fr/.test(text)) return 'quirks-mode body grid with fr rows';
     }
     return false;
 
