@@ -98,7 +98,7 @@
 # Ladybird the check fails, the page's localStorage getter gets the sandbox global and throws, and Experience Cloud
 # components that read it fail (a support portal without its footer and promo bar). Matched on Ladybird's log line.
 - id: global-accessor-this-not-windowproxy
-  issue: "draft:global-accessor-this"
+  issue: "#16104"
   text: "an accessor on the global object gets the inner Window as this, not the WindowProxy (Salesforce Lightning Locker)"
   prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "fewer-resources", "script-error:"]
   log: "Not an object of type Window"
