@@ -194,3 +194,32 @@
           return h && v && h !== v ? 'pasp ' + h + ':' + v + ' ' + u.split('/').pop().slice(0, 50) : null; } }
       return null; }).catch(() => null);
     Promise.all(urls.map(pasp)).then(r => done(r.find(Boolean) || false));
+
+# 2026-11-26: a temporal media fragment in the media URL (video.mp4#t=0.1, #t=1,3) is ignored in Ladybird
+# (HTMLMediaElement.cpp: FIXME steps 10-11 of the media data processing steps); Chromium and Firefox start there.
+# Teamtailor's video blocks use #t=0.1 so a paused video shows a frame. Runs in Ladybird: a video with its metadata loaded
+# whose current source has a #t= start above 0 and that is still at time 0.
+- id: media-fragment-start-ignored
+  issue: "draft:video-fragment-start"
+  text: "a temporal media fragment (#t=) in the video URL is ignored, playback starts at 0"
+  prefix: ["video", "image-differs"]
+  run_in: ladybird
+  js: |
+    for (const v of document.querySelectorAll('video')) {
+      const m = /#t=(?:npt:)?([\d.]+)/.exec(v.currentSrc || '');
+      if (m && parseFloat(m[1]) > 0 && v.readyState >= 1 && v.currentTime === 0) return 'video at 0 with #t=' + m[1];
+    }
+    return false;
+
+# 2026-11-26: a missing feature. Chromium (recent versions; the reference here does) and Safari play an HLS playlist (.m3u8) given straight to <video>;
+# Ladybird and Firefox need a script player with Media Source Extensions (hls.js). oslo.ecotrail.com: the hero video's
+# <source src="….m3u8" type="video/mp4"> plays in Chromium only. Runs in the reference browser: a video playing an .m3u8
+# URL directly (not a blob: URL from MSE) with data loaded.
+- id: native-hls-playlist
+  issue: "missing-feature:native-hls"
+  text: "an HLS playlist (.m3u8) given straight to <video> plays only in Chromium and Safari"
+  prefix: ["video", "image-differs", "layout:", "mobile-layout:"]
+  js: |
+    for (const v of document.querySelectorAll('video'))
+      if (/\.m3u8(\?|#|$)/i.test(v.currentSrc || '') && v.readyState >= 2) return 'native HLS ' + v.currentSrc.split('/').pop().slice(0, 50);
+    return false;
