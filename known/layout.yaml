@@ -1303,7 +1303,7 @@
 # heading wraps. Runs in the reference browser: an absolutely positioned element that a style rule gives width:
 # fit-content whose text wraps (so its max-content width is more than the space available).
 - id: abspos-fit-content-ignores-insets
-  issue: "draft:abspos-fit-content"
+  issue: "#16149"
   text: "width: fit-content on an absolutely positioned box ignores the space its insets leave"
   prefix: ["layout:", "mobile-layout:", "image-differs", "overflow", "mobile-overflow"]
   js: |
