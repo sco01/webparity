@@ -13,6 +13,13 @@
   text: "-webkit-opacity is a Chromium-only alias (Firefox drops it too)"
   prefix: ["css-dropped:opacity:"]
 
+# 2026-11-26: -webkit-column-break-inside is an alias of break-inside only in Chromium and Safari; Firefox drops it too
+# (bilnorge.no: .col-1 > * { -webkit-column-break-inside: avoid } and nothing else, so items split across columns in
+# Ladybird and Firefox). Ladybird supports break-inside: avoid itself, so a dropped break-inside is this alias.
+- issue: "not-a-bug:webkit-column-break-inside"
+  text: "-webkit-column-break-inside is a Chromium/Safari-only alias of break-inside (Firefox drops it too)"
+  prefix: ["css-dropped:break-inside:"]
+
 # Background images are fetched for CSS rules that match nothing and for display: none
 - issue: "#14069"
   text: "background images fetched for unmatched rules and display: none"
