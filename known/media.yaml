@@ -170,3 +170,26 @@
       return (a[0] === 0xFF && a[1] === 0xFE) || (a[0] === 0xFE && a[1] === 0xFF) ? u : null;
     }).catch(() => null)))
       .then(r => { const u = r.find(Boolean); done(u ? 'utf-16 svg ' + u.split('/').pop().slice(0, 50) : false); });
+
+# 2026-11-26: a video with non-square pixels (an MP4 pasp box, e.g. 145:96 on a 1920×1080 hero video) is sized and shown
+# by its coded size in Ladybird; Chromium and Firefox scale the width by the pixel aspect ratio (2900×1080), so with
+# object-fit: cover the hero is cropped and placed differently. Runs in the reference browser: the first 300 KB of each
+# visible MP4 video (moov first) holds a pasp box other than 1:1.
+- id: video-pixel-aspect-ratio-ignored
+  issue: "draft:video-pixelformat"
+  text: "a video with non-square pixels (pasp) gets its coded size, not its display size"
+  prefix: ["image-differs", "layout:", "mobile-layout:", "video", "overflow", "mobile-overflow"]
+  async: true
+  js: |
+    setTimeout(() => done(false), 10000);
+    const urls = [...new Set([...document.querySelectorAll('video')].filter(v => {
+      const r = v.getBoundingClientRect(); return r.width > 50 && r.height > 50; })
+      .map(v => v.currentSrc).filter(u => /^https?:/.test(u)))].slice(0, 5);
+    const pasp = u => fetch(u, {headers: {Range: 'bytes=0-300000'}}).then(r => r.arrayBuffer()).then(buf => {
+      const b = new Uint8Array(buf), dv = new DataView(buf);
+      for (let i = 4; i + 12 <= b.length; i++) {
+        if (b[i] === 0x70 && b[i + 1] === 0x61 && b[i + 2] === 0x73 && b[i + 3] === 0x70 && dv.getUint32(i - 4) === 16) {
+          const h = dv.getUint32(i + 4), v = dv.getUint32(i + 8);
+          return h && v && h !== v ? 'pasp ' + h + ':' + v + ' ' + u.split('/').pop().slice(0, 50) : null; } }
+      return null; }).catch(() => null);
+    Promise.all(urls.map(pasp)).then(r => done(r.find(Boolean) || false));
