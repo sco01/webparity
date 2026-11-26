@@ -1285,7 +1285,7 @@
 # reference browser: a visible element with at least one <wbr> child and no other children than <wbr> elements and
 # white space.
 - id: wbr-only-line-zero-height
-  issue: "draft:wbr-tom-rad"
+  issue: "#16139"
   text: "a block holding only <wbr> elements gets no line (0 px high)"
   prefix: ["layout:", "mobile-layout:", "image-differs", "shorter-page"]
   js: |
