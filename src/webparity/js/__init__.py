@@ -307,8 +307,10 @@ SCROLL_STATE = (
     "return [Math.round(scrollY), document.documentElement.scrollHeight, document.querySelectorAll('*').length, "
     "performance.getEntriesByType('resource').filter(e => e.initiatorType !== 'link').length]"
 )
+# Instant, not smooth (2026-11-26: with html { scroll-behavior: smooth } each step restarted the animation 350 ms later; on a
+# heavy page Ladybird's animation had moved 12 px by then, so the test stopped near the top and reported scroll-lazy-content)
 SCROLL_STEP = (
-    "window.scrollBy(0, Math.round(innerHeight * 0.9));\n"
+    "window.scrollBy({top: Math.round(innerHeight * 0.9), left: 0, behavior: 'instant'});\n"
     "return [Math.round(scrollY), document.documentElement.scrollHeight, document.querySelectorAll('*').length, "
     "performance.getEntriesByType('resource').length]"
 )
