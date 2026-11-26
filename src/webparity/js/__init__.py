@@ -302,10 +302,12 @@ return out;
 )
 CSS_SUPPORTS = "return arguments[0].map(p => CSS.supports(p, 'initial'))"
 
-# Scrolling: one screen down, and the state [scrollY, scrollHeight, elements, resources]
+# Scrolling: one screen down, and the state [scrollY, scrollHeight, elements, resources]. Resources are distinct URLs
+# (2026-11-26: Chromium adds an entry for every <img> that loads a URL already loaded, Ladybird one per URL - a page
+# with repeated GIFs grew by 14 entries in Chromium and 3 in Ladybird with every image loaded in both)
 SCROLL_STATE = (
     "return [Math.round(scrollY), document.documentElement.scrollHeight, document.querySelectorAll('*').length, "
-    "performance.getEntriesByType('resource').filter(e => e.initiatorType !== 'link').length]"
+    "new Set(performance.getEntriesByType('resource').filter(e => e.initiatorType !== 'link').map(e => e.name)).size]"
 )
 # Instant, not smooth (2026-11-26: with html { scroll-behavior: smooth } each step restarted the animation 350 ms later; on a
 # heavy page Ladybird's animation had moved 12 px by then, so the test stopped near the top and reported scroll-lazy-content)
