@@ -1296,3 +1296,22 @@
         return 'abspos after overflowing line ' + (e.className || e.tagName).toString().slice(0, 40);
     }
     return false;
+
+# 2026-11-26: box-decoration-break: clone on an inline box that wraps: Chromium and Firefox give every line fragment
+# the inline padding on both sides, Ladybird lays the fragments out as with slice (the first gets only the start padding,
+# the last only the end), so each line is a padding narrower and the text of later lines starts at the box's edge (a
+# hero heading with padding 0 8px: 704/752 px wide lines instead of 712/760). Open issue #15410 (MDN's example page),
+# not ours. Runs in the reference browser: a visible inline box with clone, inline padding or border, on two or more lines.
+- id: box-decoration-break-clone-inline-padding
+  issue: "#15410"
+  text: "box-decoration-break: clone does not give each line fragment of an inline box its padding"
+  prefix: ["image-differs", "layout:", "mobile-layout:"]
+  js: |
+    for (const e of document.querySelectorAll('body *')) {
+      const c = getComputedStyle(e);
+      if (c.display !== 'inline' || c.boxDecorationBreak !== 'clone') continue;
+      if (parseFloat(c.paddingLeft) + parseFloat(c.paddingRight) + parseFloat(c.borderLeftWidth) + parseFloat(c.borderRightWidth) < 2) continue;
+      const rects = [...e.getClientRects()].filter(r => r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight * 3);
+      if (rects.length > 1) return 'clone on ' + e.tagName.toLowerCase() + '.' + String(e.className).split(' ')[0].slice(0, 40) + ', ' + rects.length + ' lines';
+    }
+    return false;
