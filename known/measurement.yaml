@@ -336,3 +336,19 @@
       if (c.measureText(m[0]).width < 2 * fs) return 'CJK at ' + (c.measureText(m[0]).width / 4).toFixed(1) + ' px per character, font ' + s.fontFamily.slice(0, 50);
     }
     return false;
+
+# 2026-11-26: a measurement difference. Chromium starts loading loading=lazy images well before they come near the
+# viewport (here 1,860 px below it), Ladybird and Firefox do not; an unloaded image in a shrink-to-fit link is 0×0, so a
+# product card grid is 274 px high in Ladybird against 514 (scrolled into view: 270 px in all three). Runs in Ladybird: a
+# loading=lazy image more than 300 px below the viewport that has not loaded and is 0 px high.
+- id: lazy-image-not-loaded-below-viewport
+  issue: "measurement-lazy-load"
+  text: "a loading=lazy image far below the viewport is not loaded yet in Ladybird (like Firefox); Chromium loads it early"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "shorter-page", "broken-images"]
+  run_in: ladybird
+  js: |
+    for (const i of document.querySelectorAll('img[loading=lazy]')) {
+      const r = i.getBoundingClientRect();
+      if (r.top > innerHeight + 300 && !i.naturalWidth && r.height < 1) return 'unloaded lazy image ' + Math.round(r.top - innerHeight) + ' px below the viewport';
+    }
+    return false;

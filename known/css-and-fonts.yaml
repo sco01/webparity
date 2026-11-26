@@ -320,3 +320,24 @@
       for (const e of Array.from(els).slice(0, 50)) { const c = getComputedStyle(e, '::' + m[1]);
         if (c.content === 'none' && c.animationName && c.animationName !== 'none') return part.trim().slice(0, 60) + ' animation ' + c.animationName.slice(0, 30); } }
     return false;
+
+# 2026-11-26: not a Ladybird bug. Ladybird supports the standard `line-clamp` shorthand (CSS Overflow 4), which clamps
+# any block container; Chromium and Firefox do not support it at all (CSS.supports('line-clamp', '2') is false) and only
+# know -webkit-line-clamp, which needs display: -webkit-box. A book page's CSS-in-JS sets `line-clamp: 10` on a plain
+# block with overflow: hidden, so its description is cut to ten lines (224 px) only in Ladybird (717 px elsewhere).
+# Runs in Ladybird: a block (not -webkit-box) with a line-clamp other than none whose content is cut.
+- id: standard-line-clamp-on-block
+  issue: "not-a-bug:standard-line-clamp"
+  text: "Ladybird supports the standard line-clamp on block containers; Chromium and Firefox ignore it"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "shorter-page", "less-content", "zero-size-text"]
+  run_in: ladybird
+  js: |
+    for (const e of Array.from(document.querySelectorAll('body *')).slice(0, 8000)) {
+      const s = getComputedStyle(e);
+      if (!s.lineClamp || s.lineClamp === 'none' || /-webkit-legacy/.test(s.lineClamp) || /-webkit-(inline-)?box/.test(s.display)) continue;
+      const r = e.getBoundingClientRect(); if (r.height < 1) continue;
+      let cut = false;
+      for (const c of e.querySelectorAll('*')) { const cr = c.getBoundingClientRect(); if (cr.height > 0 && cr.top >= r.bottom - 1) { cut = true; break; } }
+      if (cut || e.scrollHeight > e.clientHeight + 1) return 'line-clamp ' + s.lineClamp + ' on ' + s.display + ' ' + (e.classList[0] || e.tagName.toLowerCase());
+    }
+    return false;
