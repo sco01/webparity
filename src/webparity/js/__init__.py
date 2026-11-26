@@ -341,6 +341,12 @@ const C = Array.from(document.querySelectorAll('header button[aria-expanded="fal
 const b = C.find(e => { const r = e.getBoundingClientRect(); return r.width > 8 && r.height > 8 && r.top >= 0 && r.bottom <= innerHeight && !e.closest('form') && !e.disabled && (e.getAttribute('type') || '').toLowerCase() !== 'submit'; });
 if (!b) return null;
 b.setAttribute('data-webparity-menu', '1');
+// Whether the button reports itself open at any moment from here on (2026-11-26): Radix navigation menus open on hover
+// after 200 ms and toggle on click, and Ladybird's WebDriver takes ~280 ms from the pointer move to the click, so the
+// hover has opened the menu and the click closes it again; in Chromium the click comes after 30 ms and opens it.
+window.__wpMenuOpened = false;
+const opened = () => { if (b.getAttribute('aria-expanded') === 'true' || b.getAttribute('data-state') === 'open') window.__wpMenuOpened = true; };
+new MutationObserver(opened).observe(b, {attributes: true, attributeFilter: ['aria-expanded', 'data-state']});
 const r = b.getBoundingClientRect();
 return {label: ((b.getAttribute('aria-label') || b.innerText || '').trim().replace(/\s+/g, ' ')).slice(0, 40), controls: b.getAttribute('aria-controls'),
         center: [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)]};
@@ -357,7 +363,8 @@ const b = document.querySelector('[data-webparity-menu]');
 if (!b) return {gone: true, url: location.href.slice(0, 300)};
 const id = b.getAttribute('aria-controls'); const m = id ? document.getElementById(id) : null;
 const r = m ? m.getBoundingClientRect() : null;
-return {expanded: b.getAttribute('aria-expanded') === 'true', controlled_visible: r ? r.width > 0 && r.height > 0 : null, url: location.href.slice(0, 300)};
+return {expanded: b.getAttribute('aria-expanded') === 'true', controlled_visible: r ? r.width > 0 && r.height > 0 : null,
+        opened_during: !!window.__wpMenuOpened, url: location.href.slice(0, 300)};
 """
 
 NAV_TIMING = (

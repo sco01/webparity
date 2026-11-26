@@ -12,7 +12,9 @@ from webparity.detectors._common import OK, finding, gate, m, reference
 
 
 def opened(d: dict) -> bool:
-    return bool(d.get("expanded") or d.get("controlled_visible"))
+    """Open after the click, or open at some moment during it (``opened_during``, 2026-11-26): a hover-opened menu that
+    the click then closed again, because Ladybird's WebDriver is slower between the pointer move and the click."""
+    return bool(d.get("expanded") or d.get("controlled_visible") or d.get("opened_during"))
 
 
 class Menu(Detector):
