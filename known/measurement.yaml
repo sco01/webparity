@@ -314,3 +314,25 @@
     const e = [...document.querySelectorAll('[data-cky-tag=video-placeholder]')]
       .find(x => { const r = x.getBoundingClientRect(); return r.width > 50 && r.height > 50; });
     return e ? 'CookieYes video placeholder ' + Math.round(e.getBoundingClientRect().height) + ' px' : false;
+
+# 2026-11-26: a measurement artefact in the reference's fonts. With a font stack naming "PingFang SC" / "Microsoft
+# YaHei" after Latin web fonts (a Chinese e-commerce page), Chromium draws Han characters about 5 px wide at 14 px –
+# a substitute without CJK glyphs – where Ladybird (10.5 px) and Firefox (13 px) use a CJK font, so a paragraph is two
+# lines in Chromium and four in Ladybird. Runs in the reference browser: a visible element with Han, kana or Hangul text
+# whose font draws four such characters narrower than two ems.
+- id: reference-narrow-cjk-fallback
+  issue: "measurement-fonts"
+  text: "the reference browser draws CJK characters with a narrow substitute font (no CJK glyphs for the page's font stack)"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "shorter-page", "overflow", "mobile-overflow", "less-content"]
+  js: |
+    const CJK = /[぀-ヿ㐀-鿿가-힯]{4}/;
+    const c = document.createElement('canvas').getContext('2d');
+    const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); let n, seen = 0;
+    while ((n = w.nextNode()) && seen < 200) {
+      const m = n.data.match(CJK); if (!m) continue; seen++;
+      const e = n.parentElement, r = e.getBoundingClientRect(); if (r.width < 1 || r.height < 1) continue;
+      const s = getComputedStyle(e); c.font = s.font || (s.fontSize + ' ' + s.fontFamily);
+      const fs = parseFloat(s.fontSize);
+      if (c.measureText(m[0]).width < 2 * fs) return 'CJK at ' + (c.measureText(m[0]).width / 4).toFixed(1) + ' px per character, font ' + s.fontFamily.slice(0, 50);
+    }
+    return false;
