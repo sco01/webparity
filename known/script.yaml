@@ -91,3 +91,14 @@
       const c = m[1].replace(/\r\n?/g, '\n'); if (c.includes('<') && !have.has(c)) return 'noscript in __NEXT_DATA__: ' + c.trim().slice(0, 50);
     }
     return false;
+
+# 2026-11-26: an accessor defined on the global object gets the inner Window as `this` instead of the WindowProxy when
+# used through a bare identifier (also indirect eval, new Function, assignment). Salesforce's Lightning Locker forwards
+# the page's globals to its sandbox through such accessors and maps `this === globalThis` to the page's window; in
+# Ladybird the check fails, the page's localStorage getter gets the sandbox global and throws, and Experience Cloud
+# components that read it fail (a support portal without its footer and promo bar). Matched on Ladybird's log line.
+- id: global-accessor-this-not-windowproxy
+  issue: "draft:global-accessor-this"
+  text: "an accessor on the global object gets the inner Window as this, not the WindowProxy (Salesforce Lightning Locker)"
+  prefix: ["layout:", "mobile-layout:", "image-differs", "less-content", "shorter-page", "fewer-resources", "script-error:"]
+  log: "Not an object of type Window"
