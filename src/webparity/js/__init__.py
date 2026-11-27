@@ -205,9 +205,12 @@ const stable = x => x && /^[A-Za-z][\w-]{0,40}$/.test(x) && !/\d{3,}|[0-9a-f]{6,
 // 400x250 crop from the desktop step kept in the mobile step, where Ladybird took the full image of another shape).
 // With its natural width, for one file listed as both 1x and 2x (Avada's logos: Chromium takes 2x, Ladybird and
 // Firefox 1x, so the logo is twice as large in them).
+// Plain images too (2026-11-27): rotating banners and random photos show another file in each browser (teknovation.dk,
+// waymarking.com, konferensvarlden.se; Chromium and Firefox differed as well). Only the file there: a natural size that
+// differs for the same file (an SVG) is Ladybird's. Blob URLs are random, so only 'blob'.
+const imgFile = e => /^blob:/.test(e.currentSrc) ? 'blob' : (e.currentSrc || '').split(/[?#]/)[0].split('/').pop().slice(0, 80);
 const imgType = e => !(e.complete && e.naturalWidth) ? 'unloaded'
-  : (e.srcset || (e.parentElement && e.parentElement.tagName === 'PICTURE'))
-    ? 'src:' + (e.currentSrc || '').split(/[?#]/)[0].split('/').pop().slice(0, 80) + ' ' + e.naturalWidth : '';
+  : 'src:' + imgFile(e) + ((e.srcset || (e.parentElement && e.parentElement.tagName === 'PICTURE')) ? ' ' + e.naturalWidth : '');
 if (!document.body) return [];
 const sx = scrollX, sy = scrollY;
 const stack = [[document.body, '', -1]];

@@ -202,7 +202,7 @@ def compare(lb_rows: list | None, ref_rows: list | None, ref_reload_rows: list |
         if c["tag"] == "img" and len(sources) == 2 and all(t.startswith("src:") for t in sources):
             # Another candidate of the srcset (2026-11-23): which one a browser takes is its choice (Chromium reuses a
             # larger one it already has), and the candidates can have different shapes - not a cause, but an
-            # explanation for the ancestors
+            # explanation for the ancestors. Since 2026-11-27 also another file in a plain image (rotating banners)
             if abs(lb["h"] - c["h"]) >= 24 or abs(lb["w"] - c["w"]) >= 24:
                 kinds[k] = "other-source"
             continue
